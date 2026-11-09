@@ -222,3 +222,8 @@ export function callAdminApi(request: AdminRequest): Promise<unknown> {
 function assertNever(value: never): never {
   throw new Error(`Unhandled admin action: ${JSON.stringify(value)}`)
 }
+
+/** The market data the console verifies: every version, so each product's history is to hand. */
+export function listMarketProducts(): Promise<unknown> {
+  return payload(api.GET('/api/admin/market-products', { params: { query: { history: 'true' } } }))
+}

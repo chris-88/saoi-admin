@@ -14,6 +14,7 @@ import { dirname, join, resolve } from 'node:path'
 const FILES = [
   'contracts/admin.ts',
   'contracts/catalogue.ts',
+  'contracts/market.ts',
   'domain/case.ts',
   'domain/catalogue/overlay.ts',
   'domain/facts.ts',
@@ -27,6 +28,7 @@ const FILES = [
   'domain/plans/types.ts',
   'domain/state-machine.ts',
   'llm/persona.ts',
+  'market/schema.ts',
   'llm/refusals.ts',
   'tenants/demo/domain-config.ts',
 ] as const

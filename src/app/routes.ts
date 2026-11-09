@@ -18,6 +18,7 @@ export const routes = {
     /** §44: what people said about it, and who asked to work on it. */
     feedback: '/feedback',
     collaborators: '/collaborators',
+    market: '/market',
     profile: '/profile',
   },
 } as const

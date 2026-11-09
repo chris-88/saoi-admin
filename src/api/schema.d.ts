@@ -5490,6 +5490,88 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/admin/market-products': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Market data read from provider websites
+     * @description The current version of every provider product, or every version with `history=true`. Ordered by provider and product, newest version first.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Include superseded versions. */
+          history?: 'true' | 'false'
+          /** @description Only this provider. */
+          provider?: string
+          /** @description Only this product (all its versions are returned). */
+          productId?: string
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The market products. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AdminMarketProductList']
+          }
+        }
+        /** @description The query is not valid. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid token. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not an administrator. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests. See `Retry-After`. */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -7515,6 +7597,57 @@ export interface components {
       status: 'GENERATED_NOT_SENT'
       /** @enum {boolean} */
       externalRequestMade: false
+    }
+    AdminMarketProductList: {
+      items: {
+        provider: string
+        /** @enum {string} */
+        category: 'savings' | 'deposit' | 'mortgage' | 'loan'
+        productId: string
+        providerProductName: string
+        rates: {
+          /** @enum {string} */
+          kind: 'deposit'
+          aerPct: number | null
+          /** @enum {string} */
+          basis: 'fixed' | 'variable'
+          fixedMonths?: number
+          thenAerPct?: number
+          tierCapEur?: number
+          aboveTierAerPct?: number
+          lumpSumAerPct?: number
+          terms?: {
+            months: number
+            aerPct: number
+            termReturnPct?: number
+          }[]
+        }
+        conditions: {
+          takesMonthly: boolean
+          takesLumpSum: boolean
+          minMonthlyEur?: number
+          maxMonthlyEur?: number
+          minLumpSumEur?: number
+          maxLumpSumEur?: number
+          minAge?: number
+          bonus?: {
+            amountEur: number
+            lessDirt: boolean
+            firstTimeBuyerOnly: boolean
+            requiresMortgageHere: boolean
+            minMonthlyEur: number
+            minMonths: number
+            minTotalEur: number
+            withinMonths: number
+          }
+        }
+        sourceUrl: string
+        effectiveFrom: string | null
+        firstSeenAt: string
+        checkedAt: string
+        supersededAt: string | null
+      }[]
+      skipped: number
     }
   }
   responses: never

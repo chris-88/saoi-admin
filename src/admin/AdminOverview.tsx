@@ -11,6 +11,7 @@ import { EngineScreen } from '@/admin/EngineScreen'
 import { ProductsScreen } from '@/admin/ProductsScreen'
 import { AnalyticsScreen } from '@/admin/AnalyticsScreen'
 import { FeedbackScreen } from '@/admin/FeedbackScreen'
+import { MarketScreen } from '@/admin/MarketScreen'
 import { CollaboratorsScreen } from '@/admin/CollaboratorsScreen'
 import { PeriodSelect } from '@/admin/parts'
 import { ProfileScreen } from '@/admin/ProfileScreen'
@@ -37,6 +38,7 @@ type Section =
   | 'forms'
   | 'feedback'
   | 'collaborators'
+  | 'market'
   | 'profile'
 
 /** The screens that read the shared overview. The others fetch their own. */
@@ -55,6 +57,7 @@ export function AdminOverview({ section }: { readonly section?: Section }): Reac
   if (section === 'analytics') return <Analytics />
   if (section === 'feedback') return <Feedback />
   if (section === 'collaborators') return <CollaboratorsScreen />
+  if (section === 'market') return <MarketScreen />
   if (section === 'profile') return <Profile />
 
   return <WithOverview section={section ?? 'cases'} />
