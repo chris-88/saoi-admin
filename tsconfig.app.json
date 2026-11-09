@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "allowArbitraryExtensions": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./src/*"],
+      "cn": ["./src/lib/utils.ts"],
+      "@domain/*": ["./src/shared/domain/*"],
+      "@contracts/*": ["./src/shared/contracts/*"],
+      "@llm/*": ["./src/shared/llm/*"],
+      "@tenants/*": ["./src/shared/tenants/*"]
+    }
+  },
+  "include": ["src"]
+}
