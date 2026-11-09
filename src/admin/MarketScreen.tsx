@@ -23,9 +23,12 @@ import {
   checkedAge,
   conditionsLines,
   describeChange,
+  detailLines,
   groupVersions,
   ratesLines,
+  SOURCE_LABELS,
   STALE_AFTER_DAYS,
+  unknownLine,
   type Line,
   type MarketGroup,
 } from '@/admin/marketFormat'
@@ -33,9 +36,10 @@ import { queryKeys } from '@/lib/queryKeys'
 import type { MarketProductVersion } from '@contracts/market.ts'
 
 /**
- * Market data: what Saoi has read off bank websites, laid out so a person can hold it against
- * the page it came from. Read-only. The rows are the stored versions; the current one is the
- * row the engine uses, and the older ones are what each product said before.
+ * Market data: what Saoi has read off bank websites and the CCPC comparison tables, laid out so
+ * a person can hold it against the page it came from. Read-only. The rows are the stored
+ * versions; the current one is what the source says now, and the older ones are what each
+ * product said before. A CCPC row carries CCPC's attribution, which is shown with it.
  */
 export function MarketScreen(): ReactNode {
   const market = useQuery({
@@ -43,21 +47,28 @@ export function MarketScreen(): ReactNode {
     queryFn: () => adminApi.listMarketProducts(),
   })
   const [provider, setProvider] = useState('all')
+  const [source, setSource] = useState('all')
   const [category, setCategory] = useState('all')
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
 
   const groups = useMemo(() => groupVersions(market.data?.items ?? []), [market.data])
   const providers = useMemo(() => unique(groups.map((g) => g.versions[0]?.provider)), [groups])
   const categories = useMemo(() => unique(groups.map((g) => g.versions[0]?.category)), [groups])
+  const sources = useMemo(() => unique(groups.map((g) => g.versions[0]?.source)), [groups])
   const shown = groups.filter((g) => {
     const row = g.current ?? g.versions[0]
     return (
       row !== undefined &&
       (provider === 'all' || row.provider === provider) &&
+      (source === 'all' || row.source === source) &&
       (category === 'all' || row.category === category)
     )
   })
   const now = new Date()
+  // Each source's re-use terms ask for its attribution wherever its data is shown.
+  const attributions = unique(
+    shown.map((g) => (g.current ?? g.versions[0])?.attribution ?? undefined),
+  )
 
   const toggle = (key: string) =>
     setOpen((previous) => {
@@ -70,7 +81,7 @@ export function MarketScreen(): ReactNode {
     <div className="space-y-6">
       <PageHeader
         title="Market data"
-        description={`Rates and conditions read from provider websites. A check older than ${String(STALE_AFTER_DAYS)} days is highlighted. Compare each row with its source page; nothing here can be edited.`}
+        description={`Rates and conditions read from provider websites and the CCPC comparison tables. A check older than ${String(STALE_AFTER_DAYS)} days is highlighted. Compare each row with its source page; nothing here can be edited.`}
       />
 
       {market.isError && (
@@ -101,10 +112,23 @@ export function MarketScreen(): ReactNode {
 
       {groups.length > 0 && (
         <div className="flex flex-wrap gap-4">
+          <Filter
+            label="Source"
+            value={source}
+            options={sources}
+            onChange={setSource}
+            labelFor={(option) => SOURCE_LABELS[option as keyof typeof SOURCE_LABELS] ?? option}
+          />
           <Filter label="Provider" value={provider} options={providers} onChange={setProvider} />
           <Filter label="Category" value={category} options={categories} onChange={setCategory} />
         </div>
       )}
+
+      {attributions.map((attribution) => (
+        <p key={attribution} className="text-muted-foreground text-sm">
+          {attribution}
+        </p>
+      ))}
 
       {groups.length > 0 && shown.length === 0 && (
         <p className="text-muted-foreground text-sm">Nothing matches those filters.</p>
@@ -117,11 +141,11 @@ export function MarketScreen(): ReactNode {
                 auto layout with shadcn's nowrap cells they stretched the table sideways. */}
             <Table className="min-w-[60rem] table-fixed">
               <colgroup>
-                <col className="w-[22%]" />
-                <col className="w-[22%]" />
-                <col className="w-[34%]" />
-                <col className="w-[10%]" />
-                <col className="w-[12%]" />
+                <col className="w-[20%]" />
+                <col className="w-[21%]" />
+                <col className="w-[31%]" />
+                <col className="w-[11%]" />
+                <col className="w-[17%]" />
               </colgroup>
               <TableHeader>
                 <TableRow>
@@ -160,11 +184,13 @@ function Filter({
   value,
   options,
   onChange,
+  labelFor = (option) => option,
 }: {
   readonly label: string
   readonly value: string
   readonly options: readonly string[]
   readonly onChange: (value: string) => void
+  readonly labelFor?: (option: string) => string
 }): ReactNode {
   return (
     <div className="space-y-1">
@@ -180,7 +206,7 @@ function Filter({
       >
         {['all', ...options].map((option) => (
           <ToggleGroupItem key={option} value={option}>
-            {option === 'all' ? 'All' : option}
+            {option === 'all' ? 'All' : labelFor(option)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -191,8 +217,8 @@ function Filter({
 function Lines({ lines }: { readonly lines: readonly Line[] }): ReactNode {
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
-      {lines.map((line) => (
-        <Fragment key={line.label}>
+      {lines.map((line, index) => (
+        <Fragment key={`${String(index)} ${line.label}`}>
           <dt className="text-muted-foreground">{line.label}</dt>
           <dd className="min-w-0 break-words">{line.value}</dd>
         </Fragment>
@@ -203,9 +229,11 @@ function Lines({ lines }: { readonly lines: readonly Line[] }): ReactNode {
 
 function Checked({
   checkedAt,
+  sourceUpdatedAt,
   now,
 }: {
   readonly checkedAt: string
+  readonly sourceUpdatedAt: string | null
   readonly now: Date
 }): ReactNode {
   const age = checkedAge(checkedAt, now)
@@ -216,11 +244,20 @@ function Checked({
         {age.label}
         {age.stale ? ' (stale)' : ''}
       </Badge>
+      {sourceUpdatedAt !== null && (
+        <div className="text-muted-foreground">edited at source {sourceUpdatedAt.slice(0, 10)}</div>
+      )}
     </div>
   )
 }
 
-function SourceLink({ url }: { readonly url: string }): ReactNode {
+function ExternalLink({
+  url,
+  children,
+}: {
+  readonly url: string
+  readonly children: ReactNode
+}): ReactNode {
   return (
     <a
       href={url}
@@ -228,9 +265,30 @@ function SourceLink({ url }: { readonly url: string }): ReactNode {
       rel="noreferrer noopener"
       className="text-primary inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
     >
-      Open page
+      {children}
       <ExternalLinkIcon className="size-3" aria-hidden />
     </a>
+  )
+}
+
+function Source({ row }: { readonly row: MarketProductVersion }): ReactNode {
+  return (
+    <div className="space-y-1">
+      <Badge variant={row.source === 'ccpc' ? 'secondary' : 'outline'}>
+        {SOURCE_LABELS[row.source]}
+      </Badge>
+      <div>
+        <ExternalLink url={row.sourceUrl}>Open page</ExternalLink>
+      </div>
+      {row.providerUrl !== null && row.providerUrl !== row.sourceUrl && (
+        <div>
+          <ExternalLink url={row.providerUrl}>Provider page</ExternalLink>
+        </div>
+      )}
+      {row.attribution !== null && (
+        <p className="text-muted-foreground text-xs break-words">{row.attribution}</p>
+      )}
+    </div>
   )
 }
 
@@ -261,7 +319,7 @@ function GroupRows({
           {row.effectiveFrom !== null && (
             <div className="text-muted-foreground text-xs">from {row.effectiveFrom}</div>
           )}
-          {retired && <Badge variant="secondary">gone from the site</Badge>}
+          {retired && <Badge variant="secondary">gone from the source</Badge>}
           <div>
             <Button
               variant="ghost"
@@ -279,13 +337,18 @@ function GroupRows({
           <Lines lines={ratesLines(row.rates)} />
         </TableCell>
         <TableCell className="align-top whitespace-normal">
-          <Lines lines={conditionsLines(row.conditions)} />
+          <Lines
+            lines={[
+              ...conditionsLines(row.conditions),
+              ...[unknownLine(row.unknown)].filter((line): line is Line => line !== null),
+            ]}
+          />
         </TableCell>
         <TableCell className="align-top text-xs whitespace-normal">
-          <Checked checkedAt={row.checkedAt} now={now} />
+          <Checked checkedAt={row.checkedAt} sourceUpdatedAt={row.sourceUpdatedAt} now={now} />
         </TableCell>
         <TableCell className="align-top whitespace-normal">
-          <SourceLink url={row.sourceUrl} />
+          <Source row={row} />
         </TableCell>
       </TableRow>
       {expanded && (
@@ -341,6 +404,12 @@ function Detail({
           })}
         </ol>
       </section>
+      {detailLines(row.conditions).length > 0 && (
+        <section className="min-w-0 space-y-2">
+          <h2 className="text-sm font-medium">Every field the source states</h2>
+          <Lines lines={detailLines(row.conditions)} />
+        </section>
+      )}
       <section className="min-w-0 space-y-2">
         <h2 className="text-sm font-medium">Raw JSON (current version)</h2>
         <Code
