@@ -113,12 +113,21 @@ export function MarketScreen(): ReactNode {
       {shown.length > 0 && (
         <Card className="py-0">
           <CardContent className="overflow-x-auto px-0">
-            <Table>
+            {/* Fixed layout with set widths: the bonus conditions are long sentences, and under
+                auto layout with shadcn's nowrap cells they stretched the table sideways. */}
+            <Table className="min-w-[60rem] table-fixed">
+              <colgroup>
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[34%]" />
+                <col className="w-[10%]" />
+                <col className="w-[12%]" />
+              </colgroup>
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Rates</TableHead>
-                  <TableHead className="min-w-[16rem]">Conditions</TableHead>
+                  <TableHead>Conditions</TableHead>
                   <TableHead>Checked</TableHead>
                   <TableHead>Source</TableHead>
                 </TableRow>
@@ -185,7 +194,7 @@ function Lines({ lines }: { readonly lines: readonly Line[] }): ReactNode {
       {lines.map((line) => (
         <Fragment key={line.label}>
           <dt className="text-muted-foreground">{line.label}</dt>
-          <dd>{line.value}</dd>
+          <dd className="min-w-0 break-words">{line.value}</dd>
         </Fragment>
       ))}
     </dl>
@@ -244,7 +253,7 @@ function GroupRows({
   return (
     <>
       <TableRow>
-        <TableCell className="align-top">
+        <TableCell className="align-top whitespace-normal">
           <div className="font-medium">{row.providerProductName}</div>
           <div className="text-muted-foreground text-xs">
             {row.provider} · {row.category} · <code>{row.productId}</code>
@@ -266,16 +275,16 @@ function GroupRows({
             </Button>
           </div>
         </TableCell>
-        <TableCell className="align-top">
+        <TableCell className="align-top whitespace-normal">
           <Lines lines={ratesLines(row.rates)} />
         </TableCell>
-        <TableCell className="align-top">
+        <TableCell className="align-top whitespace-normal">
           <Lines lines={conditionsLines(row.conditions)} />
         </TableCell>
-        <TableCell className="align-top text-xs">
+        <TableCell className="align-top text-xs whitespace-normal">
           <Checked checkedAt={row.checkedAt} now={now} />
         </TableCell>
-        <TableCell className="align-top">
+        <TableCell className="align-top whitespace-normal">
           <SourceLink url={row.sourceUrl} />
         </TableCell>
       </TableRow>
