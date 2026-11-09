@@ -5,12 +5,18 @@ import type { MarketProductVersion } from '@contracts/market.ts'
 
 const current: MarketProductVersion = {
   provider: 'boi',
+  source: 'bank',
   category: 'savings',
   productId: 'savings.supersaver',
   providerProductName: 'Supersaver',
   rates: { kind: 'deposit', aerPct: 2.5, basis: 'variable' },
   conditions: { takesMonthly: true, takesLumpSum: false },
   sourceUrl: 'https://example.invalid/supersaver',
+  providerUrl: null,
+  sourceProductId: null,
+  sourceUpdatedAt: null,
+  attribution: null,
+  unknown: [],
   effectiveFrom: null,
   firstSeenAt: '2026-10-01T00:00:00.000Z',
   checkedAt: '2020-01-01T00:00:00.000Z',
@@ -21,6 +27,22 @@ const old: MarketProductVersion = {
   rates: { kind: 'deposit', aerPct: 2.2, basis: 'variable' },
   firstSeenAt: '2026-09-01T00:00:00.000Z',
   supersededAt: '2026-10-01T00:00:00.000Z',
+}
+
+const fromCcpc: MarketProductVersion = {
+  ...current,
+  provider: 'aib',
+  source: 'ccpc',
+  productId: 'savings.c396',
+  providerProductName: 'Online Saver',
+  rates: { kind: 'deposit', aerPct: 3, basis: null },
+  conditions: { takesMonthly: true },
+  sourceUrl: 'https://www.ccpc.ie/regular-savings-comparison-tool',
+  providerUrl: 'https://personal.aib.ie/online-saver',
+  sourceProductId: '396',
+  attribution: 'Source: Competition and Consumer Protection Commission, www.ccpc.ie',
+  unknown: ['conditions.minAge'],
+  checkedAt: new Date().toISOString(),
 }
 
 const list = vi.fn<() => Promise<unknown>>()
@@ -62,5 +84,24 @@ describe('the market data screen', () => {
     list.mockRejectedValueOnce(new Error('boom'))
     renderScreen()
     expect(await screen.findByText('boom')).toBeInTheDocument()
+  })
+
+  it('shows a CCPC row with its attribution, and filters by source', async () => {
+    list.mockResolvedValue({ items: [current, fromCcpc], skipped: 0 })
+    renderScreen()
+    expect(await screen.findByText('Online Saver')).toBeInTheDocument()
+    expect(
+      screen.getAllByText('Source: Competition and Consumer Protection Commission, www.ccpc.ie')
+        .length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: /provider page/i })).toHaveAttribute(
+      'href',
+      'https://personal.aib.ie/online-saver',
+    )
+    expect(screen.getByText('conditions.minAge')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Provider site' }))
+    expect(screen.queryByText('Online Saver')).not.toBeInTheDocument()
+    expect(screen.getByText('Supersaver')).toBeInTheDocument()
   })
 })

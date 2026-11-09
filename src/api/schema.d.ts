@@ -5498,7 +5498,7 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Market data read from provider websites
+     * Market data read from provider websites and the CCPC comparison tables
      * @description The current version of every provider product, or every version with `history=true`. Ordered by provider and product, newest version first.
      */
     get: {
@@ -5508,6 +5508,8 @@ export interface paths {
           history?: 'true' | 'false'
           /** @description Only this provider. */
           provider?: string
+          /** @description Only rows read from this source: the provider site, or CCPC. */
+          source?: 'bank' | 'ccpc'
           /** @description Only this product (all its versions are returned). */
           productId?: string
         }
@@ -7602,29 +7604,80 @@ export interface components {
       items: {
         provider: string
         /** @enum {string} */
-        category: 'savings' | 'deposit' | 'mortgage' | 'loan'
+        source: 'bank' | 'ccpc'
+        /** @enum {string} */
+        category: 'savings' | 'deposit' | 'mortgage' | 'loan' | 'credit_card' | 'current_account'
         productId: string
         providerProductName: string
-        rates: {
-          /** @enum {string} */
-          kind: 'deposit'
-          aerPct: number | null
-          /** @enum {string} */
-          basis: 'fixed' | 'variable'
-          fixedMonths?: number
-          thenAerPct?: number
-          tierCapEur?: number
-          aboveTierAerPct?: number
-          lumpSumAerPct?: number
-          terms?: {
-            months: number
-            aerPct: number
-            termReturnPct?: number
-          }[]
-        }
+        rates:
+          | {
+              /** @enum {string} */
+              kind: 'deposit'
+              aerPct: number | null
+              /** @enum {string|null} */
+              basis: 'fixed' | 'variable' | null
+              fixedMonths?: number
+              thenAerPct?: number
+              tierCapEur?: number
+              aboveTierAerPct?: number
+              lumpSumAerPct?: number
+              tiers?: {
+                minEur: number
+                maxEur: number | null
+                aerPct: number
+              }[]
+              terms?: {
+                months: number
+                aerPct: number
+                termReturnPct?: number
+              }[]
+              termMonths?: number
+              noticeDays?: number
+            }
+          | {
+              /** @enum {string} */
+              kind: 'mortgage'
+              /** @enum {string|null} */
+              rateType: 'fixed' | 'variable' | null
+              fixedYears: number | null
+              initialRatePct: number
+              followOnRatePct: number | null
+              fullTermRatePct: number | null
+              ltvMinPct: number | null
+              ltvMaxPct: number | null
+              ber: string | null
+              cashback: boolean | null
+              customerTypes: ('first_time_buyer' | 'mover' | 'switcher')[]
+            }
+          | {
+              /** @enum {string} */
+              kind: 'loan'
+              aprPct: number
+              /** @enum {string|null} */
+              rateType: 'fixed' | 'variable' | null
+              maxAmountEur: number | null
+              maxTermMonths: number | null
+              purposes: string[]
+            }
+          | {
+              /** @enum {string} */
+              kind: 'credit_card'
+              aprPct: number | null
+              purchaseRatePct: number | null
+              cashRatePct: number | null
+              balanceTransferIntroMonths: number | null
+              balanceTransferIntroPct: number | null
+            }
+          | {
+              /** @enum {string} */
+              kind: 'current_account'
+              quarterlyFeeEur: number | null
+              creditInterestPct: number | null
+              overdraft: boolean | null
+            }
         conditions: {
-          takesMonthly: boolean
-          takesLumpSum: boolean
+          takesMonthly?: boolean
+          takesLumpSum?: boolean
           minMonthlyEur?: number
           maxMonthlyEur?: number
           minLumpSumEur?: number
@@ -7640,8 +7693,19 @@ export interface components {
             minTotalEur: number
             withinMonths: number
           }
+          prose?: {
+            [key: string]: string
+          }
+          details?: {
+            [key: string]: string
+          }
         }
         sourceUrl: string
+        providerUrl: string | null
+        sourceProductId: string | null
+        sourceUpdatedAt: string | null
+        attribution: string | null
+        unknown: string[]
         effectiveFrom: string | null
         firstSeenAt: string
         checkedAt: string

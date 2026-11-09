@@ -13,10 +13,16 @@ export const STALE_AFTER_DAYS = 8
 const pct = (value: number): string => `${String(value)}%`
 const eur = (value: number): string => `€${value.toLocaleString('en-IE')}`
 
-export function ratesLines(rates: MarketProductVersion['rates']): Line[] {
+type Rates = MarketProductVersion['rates']
+
+const yesNo = (value: boolean | null): string =>
+  value === null ? 'not stated' : value ? 'yes' : 'no'
+const pctOrUnknown = (value: number | null): string => (value === null ? 'not stated' : pct(value))
+
+function depositLines(rates: Extract<Rates, { kind: 'deposit' }>): Line[] {
   const lines: Line[] = []
   if (rates.aerPct !== null) lines.push({ label: 'Rate', value: `${pct(rates.aerPct)} AER` })
-  lines.push({ label: 'Basis', value: rates.basis })
+  lines.push({ label: 'Basis', value: rates.basis ?? 'not stated' })
   if (rates.fixedMonths !== undefined) {
     lines.push({ label: 'Fixed for', value: `${String(rates.fixedMonths)} months` })
   }
@@ -30,6 +36,22 @@ export function ratesLines(rates: MarketProductVersion['rates']): Line[] {
   if (rates.lumpSumAerPct !== undefined) {
     lines.push({ label: 'Lump sum', value: pct(rates.lumpSumAerPct) })
   }
+  for (const tier of rates.tiers ?? []) {
+    const band =
+      tier.maxEur === null
+        ? `from ${eur(tier.minEur)}`
+        : `${eur(tier.minEur)} to ${eur(tier.maxEur)}`
+    lines.push({ label: band, value: `${pct(tier.aerPct)} AER` })
+  }
+  if (rates.termMonths !== undefined) {
+    lines.push({ label: 'Term', value: `${String(rates.termMonths)} months` })
+  }
+  if (rates.noticeDays !== undefined) {
+    lines.push({
+      label: 'Notice',
+      value: rates.noticeDays === 0 ? 'none' : `${String(rates.noticeDays)} days`,
+    })
+  }
   for (const term of rates.terms ?? []) {
     const gross =
       term.termReturnPct === undefined ? '' : `, ${pct(term.termReturnPct)} over the term`
@@ -38,11 +60,97 @@ export function ratesLines(rates: MarketProductVersion['rates']): Line[] {
   return lines
 }
 
+const CUSTOMER_TYPES: Readonly<Record<string, string>> = {
+  first_time_buyer: 'first-time buyer',
+  mover: 'mover',
+  switcher: 'switcher',
+}
+
+export function ratesLines(rates: Rates): Line[] {
+  switch (rates.kind) {
+    case 'deposit':
+      return depositLines(rates)
+    case 'mortgage': {
+      const type =
+        rates.rateType === null
+          ? 'not stated'
+          : rates.rateType === 'fixed' && rates.fixedYears !== null
+            ? `fixed ${String(rates.fixedYears)} year${rates.fixedYears === 1 ? '' : 's'}`
+            : rates.rateType
+      const ltv =
+        rates.ltvMinPct === null && rates.ltvMaxPct === null
+          ? 'not stated'
+          : `${rates.ltvMinPct === null ? '?' : String(rates.ltvMinPct)}% to ${rates.ltvMaxPct === null ? '?' : String(rates.ltvMaxPct)}%`
+      return [
+        { label: 'Rate', value: pct(rates.initialRatePct) },
+        { label: 'Type', value: type },
+        { label: 'Then', value: pctOrUnknown(rates.followOnRatePct) },
+        { label: 'Full term', value: pctOrUnknown(rates.fullTermRatePct) },
+        { label: 'LTV', value: ltv },
+        { label: 'BER', value: rates.ber ?? 'any' },
+        { label: 'Cashback', value: yesNo(rates.cashback) },
+        {
+          label: 'For',
+          value: rates.customerTypes.map((t) => CUSTOMER_TYPES[t] ?? t).join(', '),
+        },
+      ]
+    }
+    case 'loan':
+      return [
+        { label: 'APR', value: pct(rates.aprPct) },
+        { label: 'Type', value: rates.rateType ?? 'not stated' },
+        {
+          label: 'Up to',
+          value: rates.maxAmountEur === null ? 'not stated' : eur(rates.maxAmountEur),
+        },
+        {
+          label: 'Longest term',
+          value:
+            rates.maxTermMonths === null ? 'not stated' : `${String(rates.maxTermMonths)} months`,
+        },
+        {
+          label: 'For',
+          value: rates.purposes.length === 0 ? 'not stated' : rates.purposes.join(', '),
+        },
+      ]
+    case 'credit_card': {
+      const transfer =
+        rates.balanceTransferIntroMonths === null || rates.balanceTransferIntroMonths === 0
+          ? 'none stated'
+          : `${pctOrUnknown(rates.balanceTransferIntroPct)} for ${String(rates.balanceTransferIntroMonths)} months`
+      return [
+        { label: 'APR', value: pctOrUnknown(rates.aprPct) },
+        { label: 'Purchases', value: pctOrUnknown(rates.purchaseRatePct) },
+        { label: 'Cash', value: pctOrUnknown(rates.cashRatePct) },
+        { label: 'Balance transfer', value: transfer },
+      ]
+    }
+    case 'current_account':
+      return [
+        {
+          label: 'Fee a quarter',
+          value: rates.quarterlyFeeEur === null ? 'not stated' : eur(rates.quarterlyFeeEur),
+        },
+        { label: 'Credit interest', value: pctOrUnknown(rates.creditInterestPct) },
+        { label: 'Overdraft', value: yesNo(rates.overdraft) },
+      ]
+    default:
+      return assertNever(rates)
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected rate kind: ${JSON.stringify(value)}`)
+}
+
 export function conditionsLines(conditions: MarketProductVersion['conditions']): Line[] {
-  const lines: Line[] = [
-    { label: 'Monthly saving', value: conditions.takesMonthly ? 'yes' : 'no' },
-    { label: 'Lump sum', value: conditions.takesLumpSum ? 'yes' : 'no' },
-  ]
+  const lines: Line[] = []
+  const said = (value: boolean | undefined) =>
+    value === undefined ? undefined : value ? 'yes' : 'no'
+  const monthly = said(conditions.takesMonthly)
+  const lump = said(conditions.takesLumpSum)
+  if (monthly !== undefined) lines.push({ label: 'Monthly saving', value: monthly })
+  if (lump !== undefined) lines.push({ label: 'Lump sum', value: lump })
   const range = (label: string, min: number | undefined, max: number | undefined) => {
     if (min === undefined && max === undefined) return
     const text =
@@ -68,7 +176,30 @@ export function conditionsLines(conditions: MarketProductVersion['conditions']):
     if (bonus.requiresMortgageHere) parts.push('mortgage must be with this provider')
     lines.push({ label: 'Bonus', value: parts.join('; ') })
   }
+  // The source's own words. Long, so the column wraps rather than widens.
+  for (const [label, value] of Object.entries(conditions.prose ?? {})) {
+    lines.push({ label, value })
+  }
   return lines
+}
+
+/** The fields the source leaves out that Saoi would need, in words. */
+export function unknownLine(unknown: readonly string[]): Line | null {
+  if (unknown.length === 0) return null
+  return { label: 'Not stated', value: unknown.join(', ') }
+}
+
+/** Every field the source states, by its own label: for the detail panel. */
+export function detailLines(conditions: MarketProductVersion['conditions']): Line[] {
+  return Object.entries(conditions.details ?? {}).map(([label, value]) => ({
+    label: label.replace(/:\s*$/, ''),
+    value,
+  }))
+}
+
+export const SOURCE_LABELS: Readonly<Record<MarketProductVersion['source'], string>> = {
+  bank: 'Provider site',
+  ccpc: 'CCPC',
 }
 
 const DAY_MS = 86_400_000
@@ -92,7 +223,7 @@ export type MarketGroup = {
 export function groupVersions(items: readonly MarketProductVersion[]): MarketGroup[] {
   const byKey = new Map<string, MarketProductVersion[]>()
   for (const item of items) {
-    const key = `${item.provider}/${item.productId}`
+    const key = `${item.provider}/${item.source}/${item.productId}`
     byKey.set(key, [...(byKey.get(key) ?? []), item])
   }
   return [...byKey.entries()].map(([key, versions]) => ({
@@ -125,6 +256,9 @@ export function describeChange(older: MarketProductVersion, newer: MarketProduct
     name: v.providerProductName,
     category: v.category,
     sourceUrl: v.sourceUrl,
+    providerUrl: v.providerUrl,
+    sourceUpdatedAt: v.sourceUpdatedAt,
+    unknown: v.unknown,
     effectiveFrom: v.effectiveFrom,
     rates: v.rates,
     conditions: v.conditions,
