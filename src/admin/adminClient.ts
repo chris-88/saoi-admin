@@ -12,7 +12,8 @@ import {
   type CatalogueLoad,
   type CatalogueWrite,
 } from '@contracts/admin.ts'
-import { callAdminApi } from '@/lib/saoiApi'
+import { marketProductListSchema, type MarketProductList } from '@contracts/market.ts'
+import { callAdminApi, listMarketProducts } from '@/lib/saoiApi'
 import {
   analyticsSchema,
   catalogueOverridesSchema,
@@ -69,6 +70,8 @@ export const adminApi = {
     feedbackListSchema.parse(await call({ action: 'list_feedback', period })),
   listCollaborators: async (): Promise<CollaboratorList> =>
     collaboratorListSchema.parse(await call({ action: 'list_collaborators' })),
+  listMarketProducts: async (): Promise<MarketProductList> =>
+    marketProductListSchema.parse(await listMarketProducts()),
   catalogueOverrides: async (): Promise<CatalogueOverrides> =>
     catalogueOverridesSchema.parse(await call({ action: 'catalogue_overrides' })),
 

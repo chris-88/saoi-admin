@@ -10,6 +10,7 @@ import {
   SlidersHorizontalIcon,
   FileJsonIcon,
   PackageIcon,
+  GlobeIcon,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -70,6 +71,13 @@ const SECTIONS = [
     label: 'Products & rates',
     hint: 'What Saoirse can offer and quote',
     icon: PackageIcon,
+    end: false,
+  },
+  {
+    to: routes.admin.market,
+    label: 'Market data',
+    hint: 'Rates read from bank sites',
+    icon: GlobeIcon,
     end: false,
   },
   {
