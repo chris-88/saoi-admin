@@ -44,7 +44,9 @@ jobs:
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           VITE_SAOI_API_URL: ${{ vars.VITE_SAOI_API_URL }}
 
-      - name: No secrets in the published bundle
+      # No credential shape in dist/, and the service worker keeps to its rules
+      # (scripts/check-service-worker.ts), on the build that is about to ship.
+      - name: Check the published bundle and service worker
         run: npm run check:bundle
 
       - uses: actions/configure-pages@v6

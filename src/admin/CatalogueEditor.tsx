@@ -27,6 +27,7 @@ import { checkinKey } from '@domain/catalogue/overlay.ts'
 import { NEED_PRIORITIES, type NeedDefinition, type NeedPriority } from '@domain/needs/types.ts'
 import type { GoalBlueprint } from '@domain/goals/types.ts'
 import { adminApi } from '@/admin/adminClient'
+import { useReloadHold } from '@/app/reloadGate'
 import { queryKeys } from '@/lib/queryKeys'
 import type { CatalogueOverrideDto } from '@contracts/admin.ts'
 
@@ -94,7 +95,7 @@ function Form({
   const queries = useQueryClient()
   const { entry } = editing
 
-  const [draft, setDraft] = useState<Draft>(() => ({
+  const [initial] = useState<Draft>(() => ({
     enabled: override?.enabled ?? true,
     name: override?.name ?? '',
     summary: override?.summary ?? '',
@@ -105,6 +106,7 @@ function Form({
       Object.entries(override?.checkinAgendas ?? {}).map(([key, lines]) => [key, lines.join('\n')]),
     ),
   }))
+  const [draft, setDraft] = useState<Draft>(initial)
 
   const invalidate = async (): Promise<void> => {
     await queries.invalidateQueries({ queryKey: queryKeys.admin.catalogue() })
@@ -143,6 +145,9 @@ function Form({
   })
 
   const busy = save.isPending || reset.isPending
+  // A new build waits for the sheet's edits to be saved or dropped, and for a write to answer.
+  // Every edit spreads the draft, so its keys keep their order and the JSON compares cleanly.
+  useReloadHold(busy || JSON.stringify(draft) !== JSON.stringify(initial))
   const compiledSummary = 'description' in entry ? entry.description : entry.framing
 
   return (

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DownloadIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
+import { useReloadHold } from '@/app/reloadGate'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -366,6 +367,8 @@ function Editor({
   })
 
   const busy = save.isPending || restore.isPending || remove.isPending
+  // A new build waits for these edits to be saved or dropped, and for any write to answer.
+  useReloadHold(dirty || busy)
 
   return (
     <Card className="gap-4 p-4">
