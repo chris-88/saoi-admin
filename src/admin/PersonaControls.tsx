@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PRESET_NAMES, SLIDER_NAMES, type PresetName, type SliderName } from '@llm/persona.ts'
 import { PageHeader } from '@/admin/parts'
+import { useReloadHold } from '@/app/reloadGate'
 import { adminApi } from '@/admin/adminClient'
 import type { AdminOverview } from '@contracts/admin.ts'
 
@@ -49,6 +50,8 @@ export function PersonaControls({
   })
 
   const changed = SLIDER_NAMES.some((name) => sliders[name] !== persona.sliders[name])
+  // A new build waits for slider moves to be applied or reset, and for a save to answer.
+  useReloadHold(changed || save.isPending)
 
   return (
     <div className="space-y-6">
