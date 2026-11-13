@@ -1,0 +1,25 @@
+<!--
+  The maskable variant of admin-icon.svg: full bleed, because the platform cuts its own shape,
+  and everything inside the central safe circle (radius 40%, 204.8 of 512) so no mask crops it.
+  Also the source for the Apple touch icon, which iOS rounds itself and fills black where it is
+  transparent.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#002F32"/>
+  <g transform="translate(160,160) scale(3)" fill="none" stroke="#FFFFFF">
+    <path d="M7 32C7 18.1929 18.1929 7 32 7C45.8071 7 57 18.1929 57 32C57 45.8071 45.8071 57 32 57C18.1929 57 7 45.8071 7 32ZM7 32V0" stroke-width="14"/>
+    <path d="M22 29H28" stroke-width="6"/>
+    <path d="M37 29H43" stroke-width="6"/>
+  </g>
+  <g transform="translate(350,350) scale(0.56)">
+    <circle r="100" fill="#59C5BF" stroke="#002F32" stroke-width="24"/>
+    <g stroke="#002F32" stroke-width="13" stroke-linecap="round">
+      <path d="M-52 -36H52M-52 0H52M-52 36H52"/>
+    </g>
+    <g fill="#002F32">
+      <circle cx="-20" cy="-36" r="17"/>
+      <circle cx="26" cy="0" r="17"/>
+      <circle cx="-6" cy="36" r="17"/>
+    </g>
+  </g>
+</svg>
