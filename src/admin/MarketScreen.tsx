@@ -98,7 +98,7 @@ export function MarketScreen(): ReactNode {
     setSource('all')
     setCategory('all')
   }
-  const filters = (touch: boolean) => (
+  const filters = (
     <>
       <Filter
         label="Source"
@@ -106,22 +106,9 @@ export function MarketScreen(): ReactNode {
         options={sources}
         onChange={setSource}
         labelFor={(option) => SOURCE_LABELS[option as keyof typeof SOURCE_LABELS] ?? option}
-        touch={touch}
       />
-      <Filter
-        label="Provider"
-        value={provider}
-        options={providers}
-        onChange={setProvider}
-        touch={touch}
-      />
-      <Filter
-        label="Category"
-        value={category}
-        options={categories}
-        onChange={setCategory}
-        touch={touch}
-      />
+      <Filter label="Provider" value={provider} options={providers} onChange={setProvider} />
+      <Filter label="Category" value={category} options={categories} onChange={setCategory} />
     </>
   )
 
@@ -165,7 +152,7 @@ export function MarketScreen(): ReactNode {
         </Empty>
       )}
 
-      {groups.length > 0 && !phone && <div className="flex flex-wrap gap-4">{filters(false)}</div>}
+      {groups.length > 0 && !phone && <div className="flex flex-wrap gap-4">{filters}</div>}
 
       {groups.length > 0 && phone && (
         /* Sticks to the top of the console's scrolling pane, which starts under its top bar. */
@@ -201,7 +188,7 @@ export function MarketScreen(): ReactNode {
                 <SheetTitle>Filters</SheetTitle>
                 <SheetDescription>{resultCount(shown.length, groups.length)}</SheetDescription>
               </SheetHeader>
-              <div className="space-y-5 px-4">{filters(true)}</div>
+              <div className="space-y-5 px-4">{filters}</div>
               <SheetFooter className="flex-row pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <Button
                   variant="outline"
@@ -306,15 +293,12 @@ function Filter({
   options,
   onChange,
   labelFor = (option) => option,
-  touch = false,
 }: {
   readonly label: string
   readonly value: string
   readonly options: readonly string[]
   readonly onChange: (value: string) => void
   readonly labelFor?: (option: string) => string
-  /** In the phone's sheet: separate 44px buttons that wrap, rather than one joined strip. */
-  readonly touch?: boolean
 }): ReactNode {
   return (
     <div className="space-y-1">
@@ -323,15 +307,17 @@ function Filter({
         type="single"
         variant="outline"
         size="sm"
-        spacing={touch ? 2 : 0}
-        className={cn(touch && 'w-full flex-wrap')}
+        // Separate 44px buttons that wrap, at every width: a joined strip of a dozen providers
+        // ran past the card edge on the desk and could not be tapped on a phone.
+        spacing={2}
+        className="flex-wrap"
         value={value}
         // Radix clears a single group when the pressed item is pressed again; keep one chosen.
         onValueChange={(next) => onChange(next === '' ? 'all' : next)}
         aria-label={label}
       >
         {['all', ...options].map((option) => (
-          <ToggleGroupItem key={option} value={option} className={cn(touch && 'h-11 px-4')}>
+          <ToggleGroupItem key={option} value={option} className="h-11 px-4">
             {option === 'all' ? 'All' : labelFor(option)}
           </ToggleGroupItem>
         ))}
@@ -382,7 +368,11 @@ function Checked({
   return (
     <div className="space-y-1">
       <div className="whitespace-nowrap">{checkedAt.slice(0, 10)}</div>
-      <Badge variant={age.stale ? 'destructive' : 'outline'}>
+      {/* Wraps inside the narrow Checked column rather than running over the Source links. */}
+      <Badge
+        variant={age.stale ? 'destructive' : 'outline'}
+        className="max-w-full whitespace-normal"
+      >
         {age.label}
         {age.stale ? ' (stale)' : ''}
       </Badge>
@@ -497,7 +487,10 @@ function GroupRows({
       {expanded && (
         <TableRow>
           <TableCell colSpan={5} className="bg-muted/30 whitespace-normal">
-            <Detail group={group} row={row} />
+            {/* The container Detail's `@3xl:grid-cols-2` measures: two columns on a wide row. */}
+            <div className="@container">
+              <Detail group={group} row={row} />
+            </div>
           </TableCell>
         </TableRow>
       )}
