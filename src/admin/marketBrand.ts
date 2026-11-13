@@ -1,7 +1,13 @@
 /**
  * Each market provider's brand colour, for the monogram a card draws when there is no fetched
  * logo: `bg` is the brand's primary colour (the dominant colour of its icon or wordmark where it
- * has no single one), `fg` the text on it, white or black, whichever passes WCAG AA (4.5:1).
+ * has no single one), `fg` the initials on it: white when white reaches 3:1 against `bg`, else
+ * black (`textOn`).
+ *
+ * 3:1 is the floor, not WCAG AA for text (4.5:1). The monogram stands in for the provider's logo,
+ * and logotypes are exempt from 1.4.3; the provider's name sits beside it in full contrast, so
+ * the tile never carries the name alone. That lets white sit on the brands that use it (PTSB,
+ * EBS, Bankinter, An Post, Raisin) as their own marks do.
  *
  * Every id the Market data screen can meet: the API's provider table and `raisin`, the platform.
  * A provider not listed here keeps the neutral monogram.
@@ -23,10 +29,10 @@ export const MARKET_BRANDS: Readonly<Record<string, Brand>> = {
   boi: { bg: '#0000ff', fg: '#fff' },
   // Wikipedia logo https://en.wikipedia.org/wiki/File:PTSB_logo_2023.png (the orange wordmark;
   // the favicon permanenttsb.ie is the same orange on near-black).
-  ptsb: { bg: '#fc4c02', fg: '#000' },
+  ptsb: { bg: '#fc4c02', fg: '#fff' },
   // favicon ebs.ie (the red); Wikipedia logo https://en.wikipedia.org/wiki/File:EBS_Limited_Logo.jpg
   // is a deeper red, #cf0721.
-  ebs: { bg: '#ee1c25', fg: '#000' },
+  ebs: { bg: '#ee1c25', fg: '#fff' },
   // favicon bunq.com: a rainbow of stripes with no one primary; its first and widest, the green.
   bunq: { bg: '#008145', fg: '#fff' },
   // favicon moco.ie (the mint of the house mark).
@@ -36,7 +42,7 @@ export const MARKET_BRANDS: Readonly<Record<string, Brand>> = {
   revolut: { bg: '#000000', fg: '#fff' },
   // favicon anpost.com; Wikipedia logo https://en.wikipedia.org/wiki/File:An_Post_Logo.svg fills
   // #00b065, a near match.
-  an_post_money: { bg: '#00a76a', fg: '#000' },
+  an_post_money: { bg: '#00a76a', fg: '#fff' },
   // favicon avantmoney.ie (the near-black mark).
   avant_money: { bg: '#202020', fg: '#fff' },
   // favicon havenmortgages.ie (the green of the "h").
@@ -50,11 +56,11 @@ export const MARKET_BRANDS: Readonly<Record<string, Brand>> = {
   state_savings: { bg: '#73bf44', fg: '#000' },
   // favicon bankinter.com; Wikipedia logo https://commons.wikimedia.org/wiki/File:Bankinter.svg
   // fills #f76900, a near match.
-  bankinter: { bg: '#f35f00', fg: '#000' },
+  bankinter: { bg: '#f35f00', fg: '#fff' },
   // Raisin Bank AG fronts the Raisin platform under its brand: favicon raisin.ie ("Raisin Blue",
   // the arrow; https://www.raisin.com/en/corporate/press/raisin-launches-new-brand-look/).
-  raisin_bank: { bg: '#3096ff', fg: '#000' },
-  raisin: { bg: '#3096ff', fg: '#000' },
+  raisin_bank: { bg: '#3096ff', fg: '#fff' },
+  raisin: { bg: '#3096ff', fg: '#fff' },
   // favicon www.bancacfplus.it (the white CF+ on navy; the bare domain's is a stock piggy bank).
   banca_cf: { bg: '#0d1c2f', fg: '#fff' },
   // favicon nordax.com (the navy behind the mint N).
@@ -92,9 +98,12 @@ export function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
-/** White or black, whichever contrasts more with `bg`. */
+/** The contrast floor for a monogram's initials: a logotype stand-in, not body text. */
+export const MONOGRAM_MIN_CONTRAST = 3
+
+/** The monogram's initials on `bg`: white when it reaches 3:1, else black. */
 export function textOn(bg: string): '#fff' | '#000' {
-  return contrastRatio(bg, '#fff') >= contrastRatio(bg, '#000') ? '#fff' : '#000'
+  return contrastRatio(bg, '#fff') >= MONOGRAM_MIN_CONTRAST ? '#fff' : '#000'
 }
 
 const expand = (hex: string): string =>
