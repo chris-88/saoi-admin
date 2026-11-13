@@ -30,6 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Code } from '@/components/Code'
 import { PageHeader } from '@/admin/parts'
@@ -39,13 +42,18 @@ import {
   conditionsLines,
   describeChange,
   detailLines,
+  byRateDescending,
   groupVersions,
+  headlineRate,
+  parseRateBound,
   ratesLines,
   SOURCE_LABELS,
   STALE_AFTER_DAYS,
   unknownLine,
+  withinRate,
   type Line,
   type MarketGroup,
+  type RateBounds,
 } from '@/admin/marketFormat'
 import { queryKeys } from '@/lib/queryKeys'
 import { useIsNarrow } from '@/lib/useIsNarrow'
@@ -68,36 +76,59 @@ export function MarketScreen(): ReactNode {
     queryKey: queryKeys.admin.marketProducts(),
     queryFn: () => adminApi.listMarketProducts(),
   })
-  const [provider, setProvider] = useState('all')
-  const [source, setSource] = useState('all')
-  const [category, setCategory] = useState('all')
+  // Each filter is a set of chosen values; none chosen means every value.
+  const [provider, setProvider] = useState<readonly string[]>([])
+  const [source, setSource] = useState<readonly string[]>([])
+  const [category, setCategory] = useState<readonly string[]>([])
+  const [rateMin, setRateMin] = useState('')
+  const [rateMax, setRateMax] = useState('')
+  const [byRate, setByRate] = useState(false)
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
 
   const groups = useMemo(() => groupVersions(market.data?.items ?? []), [market.data])
   const providers = useMemo(() => unique(groups.map((g) => g.versions[0]?.provider)), [groups])
   const categories = useMemo(() => unique(groups.map((g) => g.versions[0]?.category)), [groups])
   const sources = useMemo(() => unique(groups.map((g) => g.versions[0]?.source)), [groups])
-  const shown = groups.filter((g) => {
+  const bounds: RateBounds = { min: parseRateBound(rateMin), max: parseRateBound(rateMax) }
+  const rateBounded = bounds.min !== null || bounds.max !== null
+  const rateOf = (g: MarketGroup) => {
+    const row = g.current ?? g.versions[0]
+    return row === undefined ? null : headlineRate(row.rates)
+  }
+  const matching = groups.filter((g) => {
     const row = g.current ?? g.versions[0]
     return (
       row !== undefined &&
-      (provider === 'all' || row.provider === provider) &&
-      (source === 'all' || row.source === source) &&
-      (category === 'all' || row.category === category)
+      chosen(provider, row.provider) &&
+      chosen(source, row.source) &&
+      chosen(category, row.category) &&
+      withinRate(headlineRate(row.rates), bounds)
     )
   })
+  const shown = byRate ? byRateDescending(matching, rateOf) : matching
   const now = new Date()
   // Each source's re-use terms ask for its attribution wherever its data is shown.
   const attributions = unique(
     shown.map((g) => (g.current ?? g.versions[0])?.attribution ?? undefined),
   )
 
-  const activeFilters = [provider, source, category].filter((value) => value !== 'all').length
+  const activeFilters =
+    [provider, source, category].filter((values) => values.length > 0).length +
+    (rateBounded ? 1 : 0) +
+    (byRate ? 1 : 0)
   const clearFilters = () => {
-    setProvider('all')
-    setSource('all')
-    setCategory('all')
+    setProvider([])
+    setSource([])
+    setCategory([])
+    setRateMin('')
+    setRateMax('')
+    setByRate(false)
   }
+  const selected = [
+    counted(source.length, 'source', 'sources'),
+    counted(provider.length, 'provider', 'providers'),
+    counted(category.length, 'category', 'categories'),
+  ].filter((part) => part !== '')
   const filters = (
     <>
       <Filter
@@ -109,6 +140,14 @@ export function MarketScreen(): ReactNode {
       />
       <Filter label="Provider" value={provider} options={providers} onChange={setProvider} />
       <Filter label="Category" value={category} options={categories} onChange={setCategory} />
+      <RateFilter
+        min={rateMin}
+        max={rateMax}
+        byRate={byRate}
+        onMin={setRateMin}
+        onMax={setRateMax}
+        onByRate={setByRate}
+      />
     </>
   )
 
@@ -152,7 +191,16 @@ export function MarketScreen(): ReactNode {
         </Empty>
       )}
 
-      {groups.length > 0 && !phone && <div className="flex flex-wrap gap-4">{filters}</div>}
+      {groups.length > 0 && !phone && (
+        <div className="flex flex-wrap items-end gap-4">
+          {filters}
+          {activeFilters > 0 && (
+            <Button variant="ghost" className="h-11" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
 
       {groups.length > 0 && phone && (
         /* Sticks to the top of the console's scrolling pane, which starts under its top bar. */
@@ -186,7 +234,9 @@ export function MarketScreen(): ReactNode {
             >
               <SheetHeader>
                 <SheetTitle>Filters</SheetTitle>
-                <SheetDescription>{resultCount(shown.length, groups.length)}</SheetDescription>
+                <SheetDescription>
+                  {[resultCount(shown.length, groups.length), ...selected].join(' · ')}
+                </SheetDescription>
               </SheetHeader>
               <div className="space-y-5 px-4">{filters}</div>
               <SheetFooter className="flex-row pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -287,6 +337,16 @@ function unique(values: readonly (string | undefined)[]): string[] {
   return [...new Set(values.filter((v): v is string => v !== undefined))].sort()
 }
 
+/** A value passes a filter when nothing is chosen in it, or the value is among those chosen. */
+function chosen(values: readonly string[], value: string): boolean {
+  return values.length === 0 || values.includes(value)
+}
+
+function counted(n: number, one: string, many: string): string {
+  return n === 0 ? '' : `${String(n)} ${n === 1 ? one : many}`
+}
+
+/** Multi-select: each toggle is on or off (`aria-pressed`); none on means every value. */
 function Filter({
   label,
   value,
@@ -295,33 +355,124 @@ function Filter({
   labelFor = (option) => option,
 }: {
   readonly label: string
-  readonly value: string
+  readonly value: readonly string[]
   readonly options: readonly string[]
-  readonly onChange: (value: string) => void
+  readonly onChange: (value: readonly string[]) => void
   readonly labelFor?: (option: string) => string
 }): ReactNode {
   return (
     <div className="space-y-1">
       <p className="text-muted-foreground text-xs">{label}</p>
       <ToggleGroup
-        type="single"
+        type="multiple"
         variant="outline"
         size="sm"
         // Separate 44px buttons that wrap, at every width: a joined strip of a dozen providers
         // ran past the card edge on the desk and could not be tapped on a phone.
         spacing={2}
         className="flex-wrap"
-        value={value}
-        // Radix clears a single group when the pressed item is pressed again; keep one chosen.
-        onValueChange={(next) => onChange(next === '' ? 'all' : next)}
+        value={[...value]}
+        onValueChange={onChange}
         aria-label={label}
       >
-        {['all', ...options].map((option) => (
+        {options.map((option) => (
           <ToggleGroupItem key={option} value={option} className="h-11 px-4">
-            {option === 'all' ? 'All' : labelFor(option)}
+            {labelFor(option)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
+    </div>
+  )
+}
+
+/**
+ * Bounds on each product's headline rate and a sort by it. A product with no rate stays only
+ * while neither bound is set.
+ */
+function RateFilter({
+  min,
+  max,
+  byRate,
+  onMin,
+  onMax,
+  onByRate,
+}: {
+  readonly min: string
+  readonly max: string
+  readonly byRate: boolean
+  readonly onMin: (value: string) => void
+  readonly onMax: (value: string) => void
+  readonly onByRate: (value: boolean) => void
+}): ReactNode {
+  const labelId = useId()
+  return (
+    <div className="space-y-1" role="group" aria-labelledby={labelId}>
+      <p id={labelId} className="text-muted-foreground text-xs">
+        Rate
+      </p>
+      <div className="flex flex-wrap items-start gap-2">
+        <RateBound label="At least" value={min} onChange={onMin} />
+        <RateBound label="At most" value={max} onChange={onMax} />
+        <Toggle
+          variant="outline"
+          size="sm"
+          className="h-11 px-4"
+          pressed={byRate}
+          onPressedChange={onByRate}
+        >
+          Highest rate first
+        </Toggle>
+      </div>
+    </div>
+  )
+}
+
+function RateBound({
+  label,
+  value,
+  onChange,
+}: {
+  readonly label: string
+  readonly value: string
+  readonly onChange: (value: string) => void
+}): ReactNode {
+  const id = useId()
+  const errorId = useId()
+  const invalid = value.trim() !== '' && parseRateBound(value) === null
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id} className="text-muted-foreground text-xs font-normal">
+          {label}
+        </Label>
+        <div className="relative">
+          <Input
+            id={id}
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            min="0"
+            max="100"
+            placeholder="any"
+            className="h-11 w-24 pr-7 tabular-nums"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+          />
+          <span
+            className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm"
+            aria-hidden
+          >
+            %
+          </span>
+        </div>
+      </div>
+      {invalid && (
+        <p id={errorId} className="text-destructive text-xs">
+          A percentage from 0 to 100
+        </p>
+      )}
     </div>
   )
 }
