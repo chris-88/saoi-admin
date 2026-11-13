@@ -54,5 +54,6 @@ export const queryKeys = {
     feedback: (period: string) => ['admin', 'feedback', period] as const,
     collaborators: () => ['admin', 'collaborators'] as const,
     marketProducts: () => ['admin', 'market-products'] as const,
+    marketViews: () => ['admin', 'market-views'] as const,
   },
 } as const

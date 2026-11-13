@@ -8,9 +8,6 @@ import type { MarketProductVersion } from '@contracts/market.ts'
 
 export type Line = { readonly label: string; readonly value: string }
 
-/** A check older than this is stale: the refresh runs weekly. */
-export const STALE_AFTER_DAYS = 8
-
 const pct = (value: number): string => `${String(value)}%`
 const eur = (value: number): string => `€${value.toLocaleString('en-IE')}`
 
@@ -140,33 +137,6 @@ export function ratesLines(rates: Rates): Line[] {
   }
 }
 
-/**
- * The one rate a product leads with, for filtering and sorting: what its Rates cell shows first.
- * A deposit's AER (the bonus where that is the headline; the top rung of a ladder or the top band
- * where it has no single rate), a mortgage's initial rate, a loan's APR, a card's APR (its
- * purchase rate where no APR is stated), a current account's credit interest (0 when none is
- * stated). Null where the source states no rate.
- */
-export function headlineRate(rates: Rates): number | null {
-  switch (rates.kind) {
-    case 'deposit': {
-      if (rates.aerPct !== null) return rates.aerPct
-      const rungs = [...(rates.terms ?? []), ...(rates.tiers ?? [])].map((r) => r.aerPct)
-      return rungs.length === 0 ? null : Math.max(...rungs)
-    }
-    case 'mortgage':
-      return rates.initialRatePct
-    case 'loan':
-      return rates.aprPct
-    case 'credit_card':
-      return rates.aprPct ?? rates.purchaseRatePct
-    case 'current_account':
-      return rates.creditInterestPct ?? 0
-    default:
-      return assertNever(rates)
-  }
-}
-
 /** Bounds on the headline rate, in percent; null is unset. */
 export type RateBounds = { readonly min: number | null; readonly max: number | null }
 
@@ -175,19 +145,6 @@ export function withinRate(rate: number | null, { min, max }: RateBounds): boole
   if (min === null && max === null) return true
   if (rate === null) return false
   return (min === null || rate >= min) && (max === null || rate <= max)
-}
-
-/** Highest headline rate first, products with none last; ties keep their order. */
-export function byRateDescending<T>(items: readonly T[], rateOf: (item: T) => number | null): T[] {
-  return items
-    .map((item, index) => ({ item, index, rate: rateOf(item) }))
-    .sort((a, b) => {
-      if (a.rate === b.rate) return a.index - b.index
-      if (a.rate === null) return 1
-      if (b.rate === null) return -1
-      return b.rate - a.rate
-    })
-    .map(({ item }) => item)
 }
 
 const rateBoundSchema = z.coerce.number().finite().nonnegative().max(100)
@@ -261,16 +218,6 @@ export function detailLines(conditions: MarketProductVersion['conditions']): Lin
 export const SOURCE_LABELS: Readonly<Record<MarketProductVersion['source'], string>> = {
   bank: 'Provider site',
   ccpc: 'CCPC',
-}
-
-const DAY_MS = 86_400_000
-
-export type Age = { readonly days: number; readonly label: string; readonly stale: boolean }
-
-export function checkedAge(checkedAt: string, now: Date): Age {
-  const days = Math.max(0, Math.floor((now.getTime() - new Date(checkedAt).getTime()) / DAY_MS))
-  const label = days === 0 ? 'today' : days === 1 ? '1 day ago' : `${String(days)} days ago`
-  return { days, label, stale: days > STALE_AFTER_DAYS }
 }
 
 export type MarketGroup = {

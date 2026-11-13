@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MarketProductVersion } from '@contracts/market.ts'
 import {
-  checkedAge,
   detailLines,
   unknownLine,
   conditionsLines,
@@ -50,13 +49,6 @@ describe('market formatting', () => {
       terms: [{ months: 12, aerPct: 2, termReturnPct: 2 }],
     })
     expect(lines).toContainEqual({ label: '12 months', value: '2% AER, 2% over the term' })
-  })
-
-  it('marks a check stale after 8 days, not at 8', () => {
-    const now = new Date('2026-11-10T00:00:00.000Z')
-    expect(checkedAge('2026-11-02T00:00:00.000Z', now)).toMatchObject({ days: 8, stale: false })
-    expect(checkedAge('2026-11-01T00:00:00.000Z', now)).toMatchObject({ days: 9, stale: true })
-    expect(checkedAge('2026-11-10T00:00:00.000Z', now).label).toBe('today')
   })
 
   it('groups versions and finds the current one', () => {

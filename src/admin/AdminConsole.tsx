@@ -42,6 +42,7 @@ import { useThemeApplied } from '@/lib/useTheme'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AdminLogin } from '@/admin/AdminLogin'
 import { useAdminAuth } from '@/admin/useAdminAuth'
+import { useSidebarOpen } from '@/admin/useSidebarOpen'
 import { SaoirseAvatar } from '@/saoirse/SaoirseAvatar'
 import { routes } from '@/app/routes'
 
@@ -136,6 +137,8 @@ export function AdminConsole(): ReactNode {
   const auth = useAdminAuth()
   useThemeApplied()
   const { pathname } = useLocation()
+  // Called before the early returns below: a hook's order must not depend on sign-in.
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
 
   if (auth.checking) {
     return (
@@ -165,7 +168,7 @@ export function AdminConsole(): ReactNode {
     <div className="bg-sidebar h-dvh overflow-hidden">
       {/* `h-full min-h-0` overrides the provider's own `min-h-svh`, which otherwise lets the
           layout grow past the screen and get clipped rather than scroll. */}
-      <SidebarProvider className="h-full min-h-0">
+      <SidebarProvider className="h-full min-h-0" open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <SidebarMenu>
