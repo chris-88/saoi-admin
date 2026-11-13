@@ -42,6 +42,7 @@ import {
   type Line,
   type MarketGroup,
 } from '@/admin/marketFormat'
+import { brandOf, MARKET_BRANDS } from '@/admin/marketBrand'
 import { MARKET_LOGOS } from '@/admin/marketLogos'
 import {
   accountKindOf,
@@ -1018,21 +1019,31 @@ function ViewItem({ view }: { readonly view: MarketView }): ReactNode {
 }
 
 const LOGOS: ReadonlySet<string> = new Set(MARKET_LOGOS)
+const BRANDED: ReadonlySet<string> = new Set(Object.keys(MARKET_BRANDS))
 const logoUrl = (id: string): string => `${import.meta.env.BASE_URL}logos/${id}.png`
 
 /**
  * The provider's logo, fetched at build time into `public/logos/` (never from its site), with
- * the platform's mark on a bank sold through one; the provider's initials when there is none.
+ * the platform's mark on a bank sold through one; the provider's initials when there is none,
+ * in its brand colour (`marketBrand.ts`) or neutral for a provider without one.
  * Decorative: the name is beside it.
  */
 function ProviderLogo({ view }: { readonly view: MarketView }): ReactNode {
-  const { logo, mark } = logoOf(view, LOGOS)
+  const { logo, mark } = logoOf(view, LOGOS, BRANDED)
   const [failed, setFailed] = useState(false)
   const drawn = failed ? null : logo
+  const brand = brandOf(view.provider)
   return (
     <span className="relative size-9 shrink-0" aria-hidden data-logo={drawn ?? 'monogram'}>
       {drawn === null ? (
-        <span className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-md text-xs font-semibold">
+        <span
+          data-brand={brand === null ? 'neutral' : brand.bg}
+          style={brand === null ? undefined : { backgroundColor: brand.bg, color: brand.fg }}
+          className={cn(
+            'flex size-9 items-center justify-center rounded-md text-xs font-semibold',
+            brand === null && 'bg-muted text-muted-foreground',
+          )}
+        >
           {monogram(view.providerName)}
         </span>
       ) : (
@@ -1046,7 +1057,7 @@ function ProviderLogo({ view }: { readonly view: MarketView }): ReactNode {
           onError={() => setFailed(true)}
         />
       )}
-      {drawn !== null && mark !== null && (
+      {mark !== null && (
         <img
           src={logoUrl(mark)}
           alt=""

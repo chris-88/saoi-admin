@@ -679,11 +679,12 @@ describe('banks sold through Raisin', () => {
     expect(cardsInOrder()).toEqual(['KBC Four Year Fixed'])
   })
 
-  it('draws the bank’s logo with the Raisin mark, Raisin’s alone, or a monogram', async () => {
+  it('draws the bank’s logo with the Raisin mark, or its monogram in its brand colour', async () => {
     atWidth(1440)
     renderScreen(WITH_RAISIN)
     await screen.findByRole('list', { name: 'Products' })
     const logo = (name: string) => cardOf(name).querySelector('[data-logo]')
+    const monogramOf = (name: string) => logo(name)?.querySelector<HTMLElement>('[data-brand]')
     expect(logo('Fixed Term Deposit')).toHaveAttribute('data-logo', 'boi')
     expect(logo('Fixed Term Deposit')?.querySelector('img')).toHaveAttribute(
       'src',
@@ -693,14 +694,28 @@ describe('banks sold through Raisin', () => {
     const nordax = cardOf('Raisin · Nordax Bank').querySelector('[data-logo]')
     expect(nordax).toHaveAttribute('data-logo', 'nordax')
     expect(nordax?.querySelector('[data-mark]')).toHaveAttribute('src', '/logos/raisin.png')
-    // Banca CF+ has none: Raisin's stands in.
+    // Banca CF+ has none: its initials in its navy, with Raisin's mark.
     const banca = cardOf('Raisin · Banca CF+').querySelector('[data-logo]')
-    expect(banca).toHaveAttribute('data-logo', 'raisin')
-    expect(banca?.querySelector('[data-mark]')).toBeNull()
-    // AIB refused the fetch: its initials.
+    expect(banca).toHaveAttribute('data-logo', 'monogram')
+    expect(banca?.querySelector('[data-brand]')).toHaveStyle({
+      backgroundColor: 'rgb(13, 28, 47)',
+      color: 'rgb(255, 255, 255)',
+    })
+    expect(banca?.querySelector('[data-mark]')).toHaveAttribute('src', '/logos/raisin.png')
+    // AIB refused the fetch: its initials, in its purple.
     expect(logo('Online Saver')).toHaveAttribute('data-logo', 'monogram')
     expect(logo('Online Saver')).toHaveTextContent('AIB')
+    expect(monogramOf('Online Saver')).toHaveAttribute('data-brand', '#6a2d7a')
+    expect(monogramOf('Online Saver')).toHaveStyle({
+      backgroundColor: 'rgb(106, 45, 122)',
+      color: 'rgb(255, 255, 255)',
+    })
+    expect(monogramOf('Online Saver')).not.toHaveClass('bg-muted')
+    // An id with no brand colour keeps the neutral monogram.
     expect(logo('Plain Card')).toHaveTextContent('AM')
+    expect(monogramOf('Plain Card')).toHaveAttribute('data-brand', 'neutral')
+    expect(monogramOf('Plain Card')).toHaveClass('bg-muted', 'text-muted-foreground')
+    expect(monogramOf('Plain Card')?.style.backgroundColor).toBe('')
   })
 })
 

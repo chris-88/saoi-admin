@@ -228,6 +228,9 @@ describe('Raisin', () => {
     expect(logoOf(banca, logos)).toEqual({ logo: 'raisin', mark: null })
     expect(logoOf(banca, new Set())).toEqual({ logo: null, mark: null })
     expect(logoOf(nordax, new Set(['nordax']))).toEqual({ logo: 'nordax', mark: null })
+    // A bank with a brand colour and no logo: its monogram, with the platform's mark.
+    expect(logoOf(banca, logos, new Set(['banca_cf']))).toEqual({ logo: null, mark: 'raisin' })
+    expect(logoOf(view, new Set(), new Set(['boi']))).toEqual({ logo: null, mark: null })
   })
 
   it('has a fetched logo for Raisin itself, to mark its banks', () => {
