@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { MarketProductVersion } from '@contracts/market.ts'
 
 /**
@@ -137,6 +138,66 @@ export function ratesLines(rates: Rates): Line[] {
     default:
       return assertNever(rates)
   }
+}
+
+/**
+ * The one rate a product leads with, for filtering and sorting: what its Rates cell shows first.
+ * A deposit's AER (the bonus where that is the headline; the top rung of a ladder or the top band
+ * where it has no single rate), a mortgage's initial rate, a loan's APR, a card's APR (its
+ * purchase rate where no APR is stated), a current account's credit interest (0 when none is
+ * stated). Null where the source states no rate.
+ */
+export function headlineRate(rates: Rates): number | null {
+  switch (rates.kind) {
+    case 'deposit': {
+      if (rates.aerPct !== null) return rates.aerPct
+      const rungs = [...(rates.terms ?? []), ...(rates.tiers ?? [])].map((r) => r.aerPct)
+      return rungs.length === 0 ? null : Math.max(...rungs)
+    }
+    case 'mortgage':
+      return rates.initialRatePct
+    case 'loan':
+      return rates.aprPct
+    case 'credit_card':
+      return rates.aprPct ?? rates.purchaseRatePct
+    case 'current_account':
+      return rates.creditInterestPct ?? 0
+    default:
+      return assertNever(rates)
+  }
+}
+
+/** Bounds on the headline rate, in percent; null is unset. */
+export type RateBounds = { readonly min: number | null; readonly max: number | null }
+
+/** Whether a headline rate passes the bounds. A product with no rate passes only unbounded. */
+export function withinRate(rate: number | null, { min, max }: RateBounds): boolean {
+  if (min === null && max === null) return true
+  if (rate === null) return false
+  return (min === null || rate >= min) && (max === null || rate <= max)
+}
+
+/** Highest headline rate first, products with none last; ties keep their order. */
+export function byRateDescending<T>(items: readonly T[], rateOf: (item: T) => number | null): T[] {
+  return items
+    .map((item, index) => ({ item, index, rate: rateOf(item) }))
+    .sort((a, b) => {
+      if (a.rate === b.rate) return a.index - b.index
+      if (a.rate === null) return 1
+      if (b.rate === null) return -1
+      return b.rate - a.rate
+    })
+    .map(({ item }) => item)
+}
+
+const rateBoundSchema = z.coerce.number().finite().nonnegative().max(100)
+
+/** A typed bound, validated: a percentage, or null when blank or not a number. */
+export function parseRateBound(text: string): number | null {
+  const trimmed = text.trim().replace(',', '.')
+  if (trimmed === '') return null
+  const parsed = rateBoundSchema.safeParse(trimmed)
+  return parsed.success ? parsed.data : null
 }
 
 function assertNever(value: never): never {
