@@ -290,7 +290,10 @@ describe('the market views at desk width', () => {
 
     const aib = within(cardOf('Online Saver'))
     expect(aib.getByText('Instant access')).toHaveClass('bg-muted')
-    expect(aib.getByText('Stale')).toHaveClass('text-destructive')
+    // Stale is a small red chip among the sources.
+    const stale = aib.getByText('Stale')
+    expect(stale).toHaveClass('text-destructive', 'text-[10px]')
+    expect(stale.closest('ul')).toHaveAccessibleName('Sources')
     expect(boi.queryByText('Stale')).not.toBeInTheDocument()
     const kbc = within(cardOf('Four Year Fixed'))
     expect(kbc.getByText('· 4-year fixed')).toBeVisible()
@@ -303,23 +306,25 @@ describe('the market views at desk width', () => {
     expect(screen.getByText(/Competition and Consumer Protection Commission/)).toBeInTheDocument()
   })
 
-  it('puts the sources on one quiet line at the foot of the card, without chips', async () => {
+  it('puts the sources as small chips in the top right, beside the provider line', async () => {
     atWidth(1440)
     renderScreen()
     const boi = within(await waitFor(() => cardOf('Fixed Term Deposit')))
-    const line = boi.getByText('Sources:').parentElement
-    if (line === null) throw new Error('no sources line')
-    expect(line).toHaveTextContent('Sources:Provider site·CCPC')
-    expect(line).toHaveClass('mt-auto', 'text-xs')
-    expect(
-      within(line)
-        .getAllByRole('button')
-        .map((b) => b.textContent),
-    ).toEqual(['Provider site', 'CCPC'])
-    expect(within(line).queryByText('Provider site')).not.toHaveClass('rounded-full')
+    expect(boi.queryByText('Sources:')).not.toBeInTheDocument()
+    const sources = boi.getByRole('list', { name: 'Sources' })
+    expect(sources).toHaveClass('col-start-2', 'row-start-1')
+    const chips = within(sources).getAllByRole('button')
+    expect(chips.map((b) => b.textContent)).toEqual(['Provider site', 'CCPC'])
+    for (const chip of chips) {
+      expect(chip).toHaveClass('bg-muted', 'text-[10px]')
+      expect(chip).not.toHaveClass('font-medium', 'font-semibold')
+    }
+    // The provider line shares the first row; the name runs under both.
+    expect(boi.getByText('Bank of Ireland')).toHaveClass('col-start-1', 'row-start-1')
+    expect(boi.queryByText('Stale')).not.toBeInTheDocument()
   })
 
-  it('stretches each row so its cards are one height, the sources line at the foot', async () => {
+  it('stretches each row so its cards are one height, the content at the top', async () => {
     atWidth(1440)
     renderScreen()
     const list = await screen.findByRole('list', { name: 'Products' })
@@ -330,6 +335,8 @@ describe('the market views at desk width', () => {
       .filter((li) => li.parentElement === list)) {
       expect(item).toHaveClass('flex')
       expect(item.firstElementChild).toHaveClass('w-full')
+      // Nothing is pinned to the foot.
+      expect(item.querySelector('.mt-auto')).toBeNull()
     }
   })
 
@@ -399,7 +406,7 @@ describe('the market views at desk width', () => {
     // Closing the source keeps the card open; See less closes it.
     fireEvent.click(ccpc)
     expect(boi.queryByRole('region', { name: 'CCPC row' })).not.toBeInTheDocument()
-    expect(boi.getByText('Open a source below for the stored row and its history.')).toBeVisible()
+    expect(boi.getByText('Open a source above for the stored row and its history.')).toBeVisible()
     fireEvent.click(boi.getByRole('button', { name: 'See less' }))
     expect(boi.queryByRole('region')).not.toBeInTheDocument()
     expect(cardOf('Fixed Term Deposit')).not.toHaveClass('col-span-full')

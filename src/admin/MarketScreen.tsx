@@ -216,7 +216,7 @@ export function MarketScreen(): ReactNode {
     <div className="space-y-6">
       <PageHeader
         title="Market data"
-        description="One entry per product, as the comparison engine sees it: a product read from the provider's page and from CCPC is one card, and CCPC's fixed terms are one card with a ladder. See more on a card holds its rate lines, conditions and dates, and a source at its foot opens the stored row and its history to hold against the page. A check the engine counts as stale is marked in red. Nothing here can be edited."
+        description="One entry per product, as the comparison engine sees it: a product read from the provider's page and from CCPC is one card, and CCPC's fixed terms are one card with a ladder. See more on a card holds its rate lines, conditions and dates, and a source chip at its top right opens the stored row and its history to hold against the page. A check the engine counts as stale is marked in red. Nothing here can be edited."
       />
 
       {market.isError && (
@@ -993,8 +993,8 @@ function SourceDetail({ source }: { readonly source: MarketViewSource }): ReactN
 }
 
 /**
- * A card is one shape closed, so a row's cards are one height (the grid stretches them, and
- * the sources line sits at the foot). Open, it spans the row, so its detail has the room.
+ * A card is one shape closed, so a row's cards are one height (the grid stretches them; the
+ * content stays at the top). Open, it spans the row, so its detail has the room.
  */
 function ViewItem({ view }: { readonly view: MarketView }): ReactNode {
   const [open, setOpen] = useState(false)
@@ -1074,10 +1074,17 @@ function ProviderLogo({ view }: { readonly view: MarketView }): ReactNode {
 
 /** A quiet chip: a ladder's rung, the kind of account. */
 const QUIET_CHIP = 'bg-muted rounded-md px-2 py-0.5 text-xs whitespace-nowrap tabular-nums'
+/**
+ * The ladder's chip, smaller: a source or the stale mark in the card's corner. On a touch screen
+ * a source's hit area reaches 44px tall around it; the chip stays small.
+ */
+const CORNER_CHIP =
+  'relative inline-flex h-4 items-center rounded px-1.5 text-[10px] leading-none whitespace-nowrap'
 
 /**
  * One product. Closed: the logo, who and what, the headline rate, the category with the kind
- * of account and the term, the ladder, and the sources at the foot. "See more" holds the rest:
+ * of account and the term, the ladder, and the sources (and a stale mark) as small chips in the
+ * top right corner, beside the provider line. "See more" holds the rest:
  * the rate lines, conditions, what is not stated, the dates, and a source's stored row.
  */
 function ViewCard({
@@ -1108,13 +1115,56 @@ function ViewCard({
     <Card className="w-full gap-3 py-4" data-open={open}>
       <div className="flex items-start gap-3 px-4">
         <ProviderLogo view={view} />
-        {/* The name has the card's width; the headline rate sits under the header. */}
-        <div className="min-w-0 flex-1 space-y-1">
-          <h2 className="leading-snug break-words">
-            <span className="text-muted-foreground block text-xs">{providerLabel(view)}</span>
-            <span className={cn('block font-medium', !open && 'line-clamp-2')}>{view.name}</span>
+        {/*
+         * The provider line shares its row with the source chips; the name below has the card's
+         * width. `contents` lets the heading's two lines sit in the grid around the chips.
+         */}
+        <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+          <h2 className="contents leading-snug">
+            <span className="text-muted-foreground col-start-1 row-start-1 block text-xs leading-snug break-words">
+              {providerLabel(view)}
+            </span>
+            <span
+              className={cn(
+                'col-span-2 row-start-2 block leading-snug font-medium break-words',
+                !open && 'line-clamp-2',
+              )}
+            >
+              {view.name}
+            </span>
           </h2>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+          <ul
+            aria-label="Sources"
+            className="col-start-2 row-start-1 flex flex-wrap justify-end gap-1 pt-px"
+          >
+            {view.sources.map((source) => {
+              const key = sourceKey(source)
+              const shown = opened !== undefined && key === openSource
+              return (
+                <li key={key} className="flex">
+                  <button
+                    type="button"
+                    className={cn(
+                      CORNER_CHIP,
+                      'focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px] pointer-coarse:after:absolute pointer-coarse:after:-inset-y-3.5 pointer-coarse:after:inset-x-0',
+                      shown
+                        ? 'bg-foreground/15 text-foreground'
+                        : 'bg-muted text-muted-foreground hover:text-foreground',
+                    )}
+                    aria-expanded={shown}
+                    aria-controls={shown ? detailId : undefined}
+                    onClick={() => onOpenSource(shown ? null : key)}
+                  >
+                    {sourceLabel(source)}
+                  </button>
+                </li>
+              )
+            })}
+            {view.stale && (
+              <li className={cn(CORNER_CHIP, 'bg-destructive/10 text-destructive')}>Stale</li>
+            )}
+          </ul>
+          <div className="text-muted-foreground col-span-2 row-start-3 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
             <span>{view.categoryLabel}</span>
             {kind !== null && <span className={QUIET_CHIP}>{kind}</span>}
             {view.termLabel !== null && view.termLabel !== '' && <span>· {view.termLabel}</span>}
@@ -1195,7 +1245,7 @@ function ViewCard({
           </div>
           {opened === undefined ? (
             <p className="text-muted-foreground text-xs">
-              Open a source below for the stored row and its history.
+              Open a source above for the stored row and its history.
             </p>
           ) : (
             <div
@@ -1209,33 +1259,6 @@ function ViewCard({
           )}
         </div>
       )}
-
-      <p className="text-muted-foreground mt-auto flex flex-wrap items-center gap-x-1.5 border-t px-4 pt-2 text-xs">
-        <span>Sources:</span>
-        {view.sources.map((source, index) => {
-          const key = sourceKey(source)
-          const shown = opened !== undefined && key === openSource
-          return (
-            <Fragment key={key}>
-              {index > 0 && <span aria-hidden>·</span>}
-              <button
-                type="button"
-                // 44px tall for a finger; the text stays small.
-                className={cn(
-                  'focus-visible:ring-ring/50 inline-flex min-h-11 items-center rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] pointer-fine:min-h-6',
-                  shown ? 'text-foreground underline' : 'text-primary',
-                )}
-                aria-expanded={shown}
-                aria-controls={shown ? detailId : undefined}
-                onClick={() => onOpenSource(shown ? null : key)}
-              >
-                {sourceLabel(source)}
-              </button>
-            </Fragment>
-          )
-        })}
-        {view.stale && <span className="text-destructive ml-auto font-medium">Stale</span>}
-      </p>
     </Card>
   )
 }
