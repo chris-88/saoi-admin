@@ -227,3 +227,8 @@ function assertNever(value: never): never {
 export function listMarketProducts(): Promise<unknown> {
   return payload(api.GET('/api/admin/market-products', { params: { query: { history: 'true' } } }))
 }
+
+/** The market as the comparison engine sees it: one view per product. */
+export function listMarketViews(): Promise<unknown> {
+  return payload(api.GET('/api/admin/market/views'))
+}
