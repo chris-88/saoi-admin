@@ -8,6 +8,8 @@ const view = (overrides: Partial<MarketView>): MarketView => ({
   id: 'x',
   provider: 'x',
   providerName: 'X',
+  platform: null,
+  providerDomain: null,
   category: 'savings',
   categoryLabel: 'Savings',
   name: 'X',
@@ -124,6 +126,41 @@ const boiLoan = view({
 })
 const ALL = [aibSaver, kbcMortgage, avantCard, boiDeposit, boiLoan]
 
+/** Two banks sold through Raisin: one with a fetched logo (Nordax), one without (Banca CF+). */
+const nordaxDeposit = view({
+  id: 'nordax:deposits.fixed_12',
+  provider: 'nordax',
+  providerName: 'Nordax Bank',
+  platform: 'Raisin',
+  providerDomain: 'nordax.com',
+  category: 'deposits',
+  categoryLabel: 'Deposits',
+  name: 'Fixed Term Deposit',
+  headline: { ratePct: 2.6, label: '2.60% AER' },
+  termMonths: 12,
+  termLabel: '12 months',
+  access: 'Fixed term',
+  sources: [
+    { source: 'ccpc', rowId: 'nordax:deposit.c12', url: null, checkedAt: '2026-11-12T00:00:00Z' },
+  ],
+})
+const bancaDeposit = view({
+  id: 'banca_cf:deposits.fixed_24',
+  provider: 'banca_cf',
+  providerName: 'Banca CF+',
+  platform: 'Raisin',
+  category: 'deposits',
+  categoryLabel: 'Deposits',
+  name: 'Time Deposit',
+  headline: { ratePct: 2.9, label: '2.90% AER' },
+  termMonths: 24,
+  termLabel: '24 months',
+  sources: [
+    { source: 'ccpc', rowId: 'banca_cf:deposit.c24', url: null, checkedAt: '2026-11-12T00:00:00Z' },
+  ],
+})
+const WITH_RAISIN = [...ALL, nordaxDeposit, bancaDeposit]
+
 const row: MarketProductVersion = {
   provider: 'boi',
   source: 'bank',
@@ -226,7 +263,7 @@ const chip = (group: string, name: string) =>
     : within(screen.getByRole('toolbar', { name: group })).getByRole('button', { name })
 
 describe('the market views at desk width', () => {
-  it('shows one card per product with readable names, labels, the ladder and the dates', async () => {
+  it('shows a closed card as its header, headline, kind of account, ladder and sources only', async () => {
     atWidth(1440)
     renderScreen()
     await screen.findByRole('list', { name: 'Products' })
@@ -240,20 +277,24 @@ describe('the market views at desk width', () => {
 
     const boi = within(cardOf('Fixed Term Deposit'))
     expect(boi.getByText('2.00% AER')).toBeInTheDocument()
-    expect(boi.getByText('Deposits · 6 to 18 months · Fixed term')).toBeInTheDocument()
-    expect(boi.getByText('2.48% AER for 18 months, fixed')).toBeInTheDocument()
+    expect(boi.getByText('Deposits')).toBeInTheDocument()
+    // A deposit's chip is "Fixed term", beside the category; the term follows.
+    expect(boi.getByText('Fixed term')).toHaveClass('bg-muted')
+    expect(boi.getByText('· 6 to 18 months')).toBeInTheDocument()
     const terms = within(boi.getByRole('list', { name: 'Terms' })).getAllByRole('listitem')
     expect(terms.map((t) => t.textContent)).toEqual(['6m 2%', '12m 2.3%', '18m 2.48%'])
-    expect(boi.getByText(/Checked 12 Nov 2026/)).not.toHaveClass('text-destructive')
-    expect(boi.getByText(/Changed 1 Oct 2026/)).toBeInTheDocument()
-    expect(boi.getByRole('button', { name: 'Provider site' })).toBeInTheDocument()
-    expect(boi.getByRole('button', { name: 'CCPC' })).toBeInTheDocument()
+    // The rate lines, conditions and dates wait behind "See more".
+    expect(boi.queryByText('2.48% AER for 18 months, fixed')).not.toBeInTheDocument()
+    expect(boi.queryByText('€5,000 to €1,000,000')).not.toBeInTheDocument()
+    expect(boi.queryByText(/Checked 12 Nov 2026/)).not.toBeInTheDocument()
 
     const aib = within(cardOf('Online Saver'))
-    expect(aib.getByText('Savings · Instant access')).toBeInTheDocument()
-    expect(aib.getByText('Checked 1 Oct 2026 (stale)')).toHaveClass('text-destructive')
-    expect(aib.getByText(/No change recorded/)).toBeInTheDocument()
-    expect(within(cardOf('Four Year Fixed')).getByText('Mortgages · 4-year fixed')).toBeVisible()
+    expect(aib.getByText('Instant access')).toHaveClass('bg-muted')
+    expect(aib.getByText('Stale')).toHaveClass('text-destructive')
+    expect(boi.queryByText('Stale')).not.toBeInTheDocument()
+    const kbc = within(cardOf('Four Year Fixed'))
+    expect(kbc.getByText('· 4-year fixed')).toBeVisible()
+    expect(kbc.queryByText('Fixed term')).not.toBeInTheDocument()
     const card = within(cardOf('Plain Card'))
     expect(card.getByText('Credit cards')).toBeInTheDocument()
     // No headline figure: nothing in its place.
@@ -262,18 +303,71 @@ describe('the market views at desk width', () => {
     expect(screen.getByText(/Competition and Consumer Protection Commission/)).toBeInTheDocument()
   })
 
-  it('folds the conditions, with what is not stated, behind a button', async () => {
+  it('puts the sources on one quiet line at the foot of the card, without chips', async () => {
+    atWidth(1440)
+    renderScreen()
+    const boi = within(await waitFor(() => cardOf('Fixed Term Deposit')))
+    const line = boi.getByText('Sources:').parentElement
+    if (line === null) throw new Error('no sources line')
+    expect(line).toHaveTextContent('Sources:Provider site·CCPC')
+    expect(line).toHaveClass('mt-auto', 'text-xs')
+    expect(
+      within(line)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Provider site', 'CCPC'])
+    expect(within(line).queryByText('Provider site')).not.toHaveClass('rounded-full')
+  })
+
+  it('stretches each row so its cards are one height, the sources line at the foot', async () => {
+    atWidth(1440)
+    renderScreen()
+    const list = await screen.findByRole('list', { name: 'Products' })
+    // The grid stretches its items (no `items-start`), each item lets its card fill it.
+    expect(list).not.toHaveClass('items-start')
+    for (const item of within(list)
+      .getAllByRole('listitem')
+      .filter((li) => li.parentElement === list)) {
+      expect(item).toHaveClass('flex')
+      expect(item.firstElementChild).toHaveClass('w-full')
+    }
+  })
+
+  it('holds everything else in one See more: rate lines, conditions, not stated, dates', async () => {
     atWidth(1440)
     renderScreen()
     const aib = within(await waitFor(() => cardOf('Online Saver')))
-    const conditions = aib.getByRole('button', { name: 'Conditions (1)' })
+    // One expandable per card: no separate conditions toggle.
+    expect(aib.queryByRole('button', { name: /Conditions/ })).not.toBeInTheDocument()
+    const more = aib.getByRole('button', { name: 'See more' })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
     expect(aib.queryByText('the minimum age to open it')).not.toBeInTheDocument()
-    fireEvent.click(conditions)
-    expect(conditions).toHaveAttribute('aria-expanded', 'true')
-    expect(aib.getByText('the minimum age to open it')).toBeInTheDocument()
+
+    fireEvent.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    expect(more).toHaveTextContent('See less')
+    const region = within(aib.getByRole('region', { name: 'More on Online Saver' }))
+    expect(region.getByText('3% AER, variable')).toBeInTheDocument()
+    expect(region.getByText('the minimum age to open it')).toBeInTheDocument()
+    expect(region.getByText('Checked 1 Oct 2026 (stale)')).toHaveClass('text-destructive')
+    expect(region.getByText(/No change recorded/)).toBeInTheDocument()
+    expect(cardOf('Online Saver')).toHaveClass('col-span-full')
+    // Opening it fetched no stored rows: that waits for a source.
+    expect(products).not.toHaveBeenCalled()
+
+    const boi = within(cardOf('Fixed Term Deposit'))
+    fireEvent.click(boi.getByRole('button', { name: 'See more' }))
+    const boiRegion = within(boi.getByRole('region', { name: 'More on Fixed Term Deposit' }))
+    expect(boiRegion.getByText('2.48% AER for 18 months, fixed')).toBeInTheDocument()
+    expect(boiRegion.getByText('Lump sum')).toBeInTheDocument()
+    expect(boiRegion.getByText(/Changed 1 Oct 2026/)).toBeInTheDocument()
+
+    fireEvent.click(more)
+    expect(aib.queryByRole('region')).not.toBeInTheDocument()
+    expect(cardOf('Online Saver')).not.toHaveClass('col-span-full')
   })
 
-  it('opens the raw row and its history from each source badge', async () => {
+  it('opens the stored row and its history from a source, in the open card', async () => {
     atWidth(1440)
     renderScreen()
     const boi = within(await waitFor(() => cardOf('Fixed Term Deposit')))
@@ -283,6 +377,7 @@ describe('the market views at desk width', () => {
 
     fireEvent.click(bank)
     expect(bank).toHaveAttribute('aria-expanded', 'true')
+    expect(boi.getByRole('button', { name: 'See less' })).toHaveAttribute('aria-expanded', 'true')
     const bankRegion = within(boi.getByRole('region', { name: 'Provider site row' }))
     expect(await bankRegion.findByText('rates.aerPct: 2.2 → 2.48')).toBeInTheDocument()
     expect(bankRegion.getByText('Fixed Term Deposit Account')).toBeInTheDocument()
@@ -301,7 +396,11 @@ describe('the market views at desk width', () => {
       'https://www.ccpc.ie/deposits',
     )
 
+    // Closing the source keeps the card open; See less closes it.
     fireEvent.click(ccpc)
+    expect(boi.queryByRole('region', { name: 'CCPC row' })).not.toBeInTheDocument()
+    expect(boi.getByText('Open a source below for the stored row and its history.')).toBeVisible()
+    fireEvent.click(boi.getByRole('button', { name: 'See less' }))
     expect(boi.queryByRole('region')).not.toBeInTheDocument()
     expect(cardOf('Fixed Term Deposit')).not.toHaveClass('col-span-full')
     expect(products).toHaveBeenCalledTimes(1)
@@ -338,7 +437,7 @@ describe('the market views at desk width', () => {
     expect(screen.getByText('2 of 5 products · 2 categories')).toBeInTheDocument()
   })
 
-  it('filters deposits, loans and mortgages by term buckets, and lets the rest pass', async () => {
+  it('filters deposits, loans and mortgages by term presets, and lets the rest pass', async () => {
     atWidth(1440)
     renderScreen()
     await screen.findByRole('list', { name: 'Products' })
@@ -374,6 +473,55 @@ describe('the market views at desk width', () => {
     ])
   })
 
+  it('clamps the term with a two-thumb slider over the terms on sale, one Term value with the presets', async () => {
+    atWidth(1440)
+    renderScreen()
+    await screen.findByRole('list', { name: 'Products' })
+    const shortest = screen.getByRole('slider', { name: 'Shortest term' })
+    const longest = screen.getByRole('slider', { name: 'Longest term' })
+    // The ends are the data's: 6 months (a ladder's rung) to 5 years (the loan).
+    expect(shortest).toHaveAttribute('aria-valuetext', '6 months')
+    expect(longest).toHaveAttribute('aria-valuetext', '5 years')
+    expect(screen.getByText('Any term')).toBeInTheDocument()
+
+    // A preset moves the slider to the months it covers.
+    fireEvent.click(chip('Term', '13 to 24 months'))
+    expect(shortest).toHaveAttribute('aria-valuetext', '18 months')
+    expect(longest).toHaveAttribute('aria-valuetext', '18 months')
+
+    // The slider clears the presets, and the range filters.
+    fireEvent.focus(shortest)
+    fireEvent.keyDown(shortest, { key: 'ArrowLeft' })
+    expect(chip('Term', '13 to 24 months')).toHaveAttribute('aria-pressed', 'false')
+    expect(shortest).toHaveAttribute('aria-valuetext', '12 months')
+    expect(screen.getByText('12 months to 18 months')).toBeInTheDocument()
+    expect(cardsInOrder()).toEqual([
+      'AIB Online Saver',
+      'Avant Money Plain Card',
+      'Bank of Ireland Fixed Term Deposit',
+    ])
+    expect(screen.getByText('3 of 5 products · 12 months to 18 months')).toBeInTheDocument()
+
+    fireEvent.focus(longest)
+    fireEvent.keyDown(longest, { key: 'End' })
+    expect(cardsInOrder()).toHaveLength(5)
+    expect(screen.getByText('5 products · 12 months to 5 years')).toBeInTheDocument()
+
+    // A preset replaces the range.
+    fireEvent.click(chip('Term', 'Variable or none'))
+    expect(cardsInOrder()).toEqual(['AIB Online Saver', 'Avant Money Plain Card'])
+    expect(shortest).toHaveAttribute('aria-valuetext', '6 months')
+    expect(longest).toHaveAttribute('aria-valuetext', '5 years')
+
+    // Both thumbs at the ends is no filter.
+    fireEvent.click(chip('Term', 'Variable or none'))
+    fireEvent.focus(shortest)
+    fireEvent.keyDown(shortest, { key: 'ArrowRight' })
+    fireEvent.keyDown(shortest, { key: 'Home' })
+    expect(screen.getByText('Any term')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeDisabled()
+  })
+
   it('bounds by headline rate, keeping a product with no rate only unbounded', async () => {
     atWidth(1440)
     renderScreen()
@@ -390,7 +538,7 @@ describe('the market views at desk width', () => {
     expect(screen.getByText('A percentage from 0 to 100')).toBeInTheDocument()
   })
 
-  it('sorts by rate, name, recently changed and recently checked', async () => {
+  it('sorts by rate either way, name, recently changed and recently checked', async () => {
     atWidth(1440)
     renderScreen()
     await screen.findByRole('list', { name: 'Products' })
@@ -402,6 +550,14 @@ describe('the market views at desk width', () => {
       'KBC Four Year Fixed',
       'AIB Online Saver',
       'Bank of Ireland Fixed Term Deposit',
+      'Avant Money Plain Card',
+    ])
+    fireEvent.click(chip('Sort', 'Rate, low to high'))
+    expect(cardsInOrder()).toEqual([
+      'Bank of Ireland Fixed Term Deposit',
+      'AIB Online Saver',
+      'KBC Four Year Fixed',
+      'Bank of Ireland Personal Loan',
       'Avant Money Plain Card',
     ])
     fireEvent.click(chip('Sort', 'Recently changed'))
@@ -464,6 +620,87 @@ describe('the market views at desk width', () => {
       </QueryClientProvider>,
     )
     expect(await screen.findByText('boom')).toBeInTheDocument()
+  })
+})
+
+describe('banks sold through Raisin', () => {
+  it('names the platform before the bank on the card, and sorts them together', async () => {
+    atWidth(1440)
+    renderScreen(WITH_RAISIN)
+    await screen.findByRole('list', { name: 'Products' })
+    expect(cardsInOrder()).toEqual([
+      'AIB Online Saver',
+      'Avant Money Plain Card',
+      'Bank of Ireland Fixed Term Deposit',
+      'Bank of Ireland Personal Loan',
+      'KBC Four Year Fixed',
+      'Raisin · Banca CF+ Time Deposit',
+      'Raisin · Nordax Bank Fixed Term Deposit',
+    ])
+  })
+
+  it('groups them under a Raisin chip in the Provider filter, which chooses them all', async () => {
+    atWidth(1440)
+    renderScreen(WITH_RAISIN)
+    await screen.findByRole('list', { name: 'Products' })
+    const direct = within(screen.getByRole('toolbar', { name: 'Provider' }))
+    expect(direct.queryByRole('button', { name: 'Nordax Bank' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('toolbar', { name: 'Raisin banks' }))
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Banca CF+', 'Nordax Bank'])
+
+    const raisin = screen.getByRole('button', { name: 'Raisin' })
+    expect(raisin).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(raisin)
+    expect(raisin).toHaveAttribute('aria-pressed', 'true')
+    expect(chip('Raisin banks', 'Nordax Bank')).toHaveAttribute('aria-pressed', 'true')
+    expect(cardsInOrder()).toEqual([
+      'Raisin · Banca CF+ Time Deposit',
+      'Raisin · Nordax Bank Fixed Term Deposit',
+    ])
+    expect(screen.getByText('2 of 7 products · 2 providers')).toBeInTheDocument()
+
+    // One bank off: the Raisin chip is neither on nor off.
+    fireEvent.click(chip('Raisin banks', 'Banca CF+'))
+    expect(raisin).toHaveAttribute('aria-pressed', 'mixed')
+    expect(cardsInOrder()).toEqual(['Raisin · Nordax Bank Fixed Term Deposit'])
+    // A direct provider adds to the choice.
+    fireEvent.click(chip('Provider', 'KBC'))
+    expect(cardsInOrder()).toEqual([
+      'KBC Four Year Fixed',
+      'Raisin · Nordax Bank Fixed Term Deposit',
+    ])
+    fireEvent.click(raisin)
+    expect(raisin).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(raisin)
+    expect(raisin).toHaveAttribute('aria-pressed', 'false')
+    expect(cardsInOrder()).toEqual(['KBC Four Year Fixed'])
+  })
+
+  it('draws the bank’s logo with the Raisin mark, Raisin’s alone, or a monogram', async () => {
+    atWidth(1440)
+    renderScreen(WITH_RAISIN)
+    await screen.findByRole('list', { name: 'Products' })
+    const logo = (name: string) => cardOf(name).querySelector('[data-logo]')
+    expect(logo('Fixed Term Deposit')).toHaveAttribute('data-logo', 'boi')
+    expect(logo('Fixed Term Deposit')?.querySelector('img')).toHaveAttribute(
+      'src',
+      '/logos/boi.png',
+    )
+    // Nordax has its own logo, with Raisin's mark on it.
+    const nordax = cardOf('Raisin · Nordax Bank').querySelector('[data-logo]')
+    expect(nordax).toHaveAttribute('data-logo', 'nordax')
+    expect(nordax?.querySelector('[data-mark]')).toHaveAttribute('src', '/logos/raisin.png')
+    // Banca CF+ has none: Raisin's stands in.
+    const banca = cardOf('Raisin · Banca CF+').querySelector('[data-logo]')
+    expect(banca).toHaveAttribute('data-logo', 'raisin')
+    expect(banca?.querySelector('[data-mark]')).toBeNull()
+    // AIB refused the fetch: its initials.
+    expect(logo('Online Saver')).toHaveAttribute('data-logo', 'monogram')
+    expect(logo('Online Saver')).toHaveTextContent('AIB')
+    expect(logo('Plain Card')).toHaveTextContent('AM')
   })
 })
 

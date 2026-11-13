@@ -24,6 +24,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
+import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Code } from '@/components/Code'
 import { PageHeader } from '@/admin/parts'
@@ -40,13 +42,20 @@ import {
   type Line,
   type MarketGroup,
 } from '@/admin/marketFormat'
+import { MARKET_LOGOS } from '@/admin/marketLogos'
 import {
+  accountKindOf,
+  ANY_TERM,
   CATEGORY_LABELS,
   DEFAULT_SORT,
   findRawGroup,
+  logoOf,
   MARKET_VIEW_CATEGORIES,
   matchesFilters,
-  providerOptions,
+  monogram,
+  monthsLabel,
+  providerGroups,
+  providerLabel,
   shortDate,
   shortTerm,
   sortViews,
@@ -55,10 +64,17 @@ import {
   sourceKey,
   TERM_BUCKETS,
   TERM_LABELS,
+  termFromBuckets,
+  termFromSpan,
+  termSpan,
+  termStops,
+  termSummary,
   type MarketView,
   type MarketViewSource,
   type Option,
+  type Platform,
   type SortKey,
+  type TermFilter,
 } from '@/admin/marketViews'
 import { queryKeys } from '@/lib/queryKeys'
 import { useIsNarrow } from '@/lib/useIsNarrow'
@@ -87,11 +103,12 @@ export function MarketScreen(): ReactNode {
     queryKey: queryKeys.admin.marketViews(),
     queryFn: () => adminApi.listMarketViews(),
   })
-  // Each filter is a set of chosen values; none chosen means every value.
+  // Each filter is a set of chosen values; none chosen means every value. Term is one value:
+  // presets, a range of months, or neither.
   const [sources, setSources] = useState<readonly string[]>([])
   const [providers, setProviders] = useState<readonly string[]>([])
   const [categories, setCategories] = useState<readonly string[]>([])
-  const [terms, setTerms] = useState<readonly string[]>([])
+  const [term, setTerm] = useState<TermFilter>(ANY_TERM)
   const [rateMin, setRateMin] = useState('')
   const [rateMax, setRateMax] = useState('')
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT)
@@ -99,7 +116,8 @@ export function MarketScreen(): ReactNode {
   const panelId = useId()
 
   const views = useMemo(() => market.data?.views ?? [], [market.data])
-  const providerChoices = useMemo(() => providerOptions(views), [views])
+  const providerChoices = useMemo(() => providerGroups(views), [views])
+  const stops = useMemo(() => termStops(views), [views])
   const sourceChoices = useMemo(
     () =>
       (['bank', 'ccpc'] as const)
@@ -110,20 +128,21 @@ export function MarketScreen(): ReactNode {
   const rate = { min: parseRateBound(rateMin), max: parseRateBound(rateMax) }
   const rateBounded = rate.min !== null || rate.max !== null
   const shown = sortViews(
-    views.filter((view) => matchesFilters(view, { sources, providers, categories, terms, rate })),
+    views.filter((view) => matchesFilters(view, { sources, providers, categories, term, rate })),
     sort,
   )
   const showsCcpc = shown.some((view) => view.sources.some((s) => s.source === 'ccpc'))
 
   const activeFilters =
-    [sources, providers, categories, terms].filter((values) => values.length > 0).length +
+    [sources, providers, categories].filter((values) => values.length > 0).length +
+    (term.kind === 'any' ? 0 : 1) +
     (rateBounded ? 1 : 0) +
     (sort === DEFAULT_SORT ? 0 : 1)
   const clearFilters = () => {
     setSources([])
     setProviders([])
     setCategories([])
-    setTerms([])
+    setTerm(ANY_TERM)
     setRateMin('')
     setRateMax('')
     setSort(DEFAULT_SORT)
@@ -134,7 +153,7 @@ export function MarketScreen(): ReactNode {
     counted(sources.length, 'source', 'sources'),
     counted(providers.length, 'provider', 'providers'),
     counted(categories.length, 'category', 'categories'),
-    counted(terms.length, 'term', 'terms'),
+    termSummary(term),
   ].filter((part) => part !== '')
 
   // A tablet's panel sets each label beside its chips, so the open panel leaves room for cards.
@@ -149,20 +168,11 @@ export function MarketScreen(): ReactNode {
       onChange={setCategories}
       inline={inline}
     />,
-    <ChipFilter
-      key="term"
-      label="Term"
-      hint="Deposits, loans and mortgages; other categories pass."
-      value={terms}
-      options={TERM_BUCKETS.map((t) => ({ value: t, label: TERM_LABELS[t] }))}
-      onChange={setTerms}
-      inline={inline}
-    />,
-    <ChipFilter
+    <TermControl key="term" value={term} stops={stops} onChange={setTerm} inline={inline} />,
+    <ProviderFilter
       key="provider"
-      label="Provider"
+      choices={providerChoices}
       value={providers}
-      options={providerChoices}
       onChange={setProviders}
       inline={inline}
     />,
@@ -205,7 +215,7 @@ export function MarketScreen(): ReactNode {
     <div className="space-y-6">
       <PageHeader
         title="Market data"
-        description="One entry per product, as the comparison engine sees it: a product read from the provider's page and from CCPC is one card, and CCPC's fixed terms are one card with a ladder. A check the engine counts as stale is in red. Open a source to compare the stored row and its history with the page; nothing here can be edited."
+        description="One entry per product, as the comparison engine sees it: a product read from the provider's page and from CCPC is one card, and CCPC's fixed terms are one card with a ladder. See more on a card holds its rate lines, conditions and dates, and a source at its foot opens the stored row and its history to hold against the page. A check the engine counts as stale is marked in red. Nothing here can be edited."
       />
 
       {market.isError && (
@@ -351,7 +361,7 @@ export function MarketScreen(): ReactNode {
               <ul
                 aria-label="Products"
                 data-columns={COLUMNS[layout]}
-                className={cn('grid items-start', GRID[layout])}
+                className={cn('grid', GRID[layout])}
               >
                 {shown.map((view) => (
                   <ViewItem key={view.id} view={view} />
@@ -446,6 +456,184 @@ function ChipFilter({
 }
 
 /**
+ * The term, one value from two controls: the presets (multi-select buckets) and a two-thumb
+ * slider over the terms on sale, in months. A preset moves the slider to the months it covers;
+ * moving the slider clears the presets. Both thumbs at the ends is no filter.
+ */
+function TermControl({
+  value,
+  stops,
+  onChange,
+  inline,
+}: {
+  readonly value: TermFilter
+  readonly stops: readonly number[]
+  readonly onChange: (value: TermFilter) => void
+  readonly inline: boolean
+}): ReactNode {
+  const hintId = useId()
+  const rangeId = useId()
+  const span = termSpan(value, stops)
+  const first = stops[0]
+  const last = stops[stops.length - 1]
+  const from = stops[span[0]]
+  const to = stops[span[1]]
+  const spanText =
+    value.kind === 'any' || from === undefined || to === undefined
+      ? 'Any term'
+      : from === to
+        ? monthsLabel(from)
+        : `${monthsLabel(from)} to ${monthsLabel(to)}`
+  return (
+    <FilterGroup label="Term" inline={inline}>
+      <ToggleGroup
+        type="multiple"
+        variant="outline"
+        size="sm"
+        spacing={2}
+        className="w-auto flex-wrap"
+        value={value.kind === 'buckets' ? [...value.buckets] : []}
+        onValueChange={(next) => onChange(termFromBuckets(next))}
+        aria-label="Term"
+        aria-describedby={hintId}
+      >
+        {TERM_BUCKETS.map((bucket) => (
+          <ToggleGroupItem key={bucket} value={bucket} className={CHIP}>
+            {TERM_LABELS[bucket]}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {first !== undefined && last !== undefined && stops.length > 1 && (
+        <div role="group" aria-labelledby={rangeId} className="max-w-md space-y-1 pt-1">
+          <p id={rangeId} className="text-sm tabular-nums">
+            <span className="sr-only">Term range: </span>
+            {spanText}
+          </p>
+          <Slider
+            min={0}
+            max={stops.length - 1}
+            step={1}
+            value={span}
+            onValueChange={(next) => onChange(termFromSpan(stops, next))}
+            thumbLabels={['Shortest term', 'Longest term']}
+            valueText={(index) => monthsLabel(stops[index] ?? 0)}
+            className="py-3"
+            // 44px to touch: a 24px thumb with a 10px ring of hit area; 16px under a mouse.
+            thumbClassName="relative size-6 after:absolute after:-inset-2.5 after:content-[''] pointer-fine:size-4 pointer-fine:after:inset-0"
+          />
+          <div className="text-muted-foreground flex justify-between text-xs" aria-hidden>
+            <span>{monthsLabel(first)}</span>
+            <span>{monthsLabel(last)}</span>
+          </div>
+        </div>
+      )}
+      <p id={hintId} className="text-muted-foreground text-xs">
+        Deposits, loans and mortgages; other categories pass.
+      </p>
+    </FilterGroup>
+  )
+}
+
+/**
+ * Providers by name: those dealt with directly, then each platform's banks under the
+ * platform's own chip, which chooses them all (pressed when all are, mixed when some are).
+ */
+function ProviderFilter({
+  choices,
+  value,
+  onChange,
+  inline,
+}: {
+  readonly choices: ReturnType<typeof providerGroups>
+  readonly value: readonly string[]
+  readonly onChange: (value: readonly string[]) => void
+  readonly inline: boolean
+}): ReactNode {
+  const { direct, platforms } = choices
+  if (direct.length === 0 && platforms.length === 0) return null
+  const directIds = new Set(direct.map((option) => option.value))
+  return (
+    <FilterGroup label="Provider" inline={inline}>
+      {direct.length > 0 && (
+        <ToggleGroup
+          type="multiple"
+          variant="outline"
+          size="sm"
+          spacing={2}
+          className="w-auto flex-wrap"
+          value={value.filter((id) => directIds.has(id))}
+          onValueChange={(next) => onChange([...value.filter((id) => !directIds.has(id)), ...next])}
+          aria-label="Provider"
+        >
+          {direct.map((option) => (
+            <ToggleGroupItem key={option.value} value={option.value} className={CHIP}>
+              {option.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      )}
+      {platforms.map(({ platform, options }) => (
+        <PlatformProviders
+          key={platform}
+          platform={platform}
+          options={options}
+          value={value}
+          onChange={onChange}
+        />
+      ))}
+    </FilterGroup>
+  )
+}
+
+function PlatformProviders({
+  platform,
+  options,
+  value,
+  onChange,
+}: {
+  readonly platform: Platform
+  readonly options: readonly Option[]
+  readonly value: readonly string[]
+  readonly onChange: (value: readonly string[]) => void
+}): ReactNode {
+  const ids = options.map((option) => option.value)
+  const others = value.filter((id) => !ids.includes(id))
+  const picked = ids.filter((id) => value.includes(id))
+  const all = picked.length === ids.length
+  return (
+    <div className="space-y-1.5 pt-1">
+      <Toggle
+        variant="outline"
+        size="sm"
+        className={cn(CHIP, 'aria-[pressed=mixed]:bg-accent/50')}
+        pressed={all}
+        // Some of its banks chosen: neither on nor off.
+        aria-pressed={all ? true : picked.length > 0 ? 'mixed' : false}
+        onPressedChange={() => onChange(all ? others : [...others, ...ids])}
+      >
+        {platform}
+      </Toggle>
+      <ToggleGroup
+        type="multiple"
+        variant="outline"
+        size="sm"
+        spacing={2}
+        className="ml-3 w-auto flex-wrap rounded-none border-l pl-3"
+        value={picked}
+        onValueChange={(next) => onChange([...others, ...next])}
+        aria-label={`${platform} banks`}
+      >
+        {options.map((option) => (
+          <ToggleGroupItem key={option.value} value={option.value} className={CHIP}>
+            {option.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  )
+}
+
+/**
  * A filter's label and its controls: the label above, or beside them on a tablet's panel.
  * The label is visual; each control names itself (`aria-label`, `aria-labelledby`).
  */
@@ -501,7 +689,7 @@ function writePanelOpen(open: boolean): void {
   }
 }
 
-/** One of four orders; choosing the chosen one again keeps it. */
+/** One of five orders; choosing the chosen one again keeps it. */
 function SortControl({
   value,
   onChange,
@@ -803,41 +991,102 @@ function SourceDetail({ source }: { readonly source: MarketViewSource }): ReactN
   )
 }
 
-/** A card opened on a source spans the row, so the raw row and its history have the room. */
+/**
+ * A card is one shape closed, so a row's cards are one height (the grid stretches them, and
+ * the sources line sits at the foot). Open, it spans the row, so its detail has the room.
+ */
 function ViewItem({ view }: { readonly view: MarketView }): ReactNode {
+  const [open, setOpen] = useState(false)
   const [openSource, setOpenSource] = useState<string | null>(null)
   return (
-    <li className={cn('min-w-0', openSource !== null && 'col-span-full')}>
-      <ViewCard view={view} openSource={openSource} onOpenSource={setOpenSource} />
+    <li className={cn('flex min-w-0', open && 'col-span-full')}>
+      <ViewCard
+        view={view}
+        open={open}
+        onOpen={(next) => {
+          setOpen(next)
+          if (!next) setOpenSource(null)
+        }}
+        openSource={openSource}
+        onOpenSource={(key) => {
+          setOpenSource(key)
+          if (key !== null) setOpen(true)
+        }}
+      />
     </li>
   )
 }
 
+const LOGOS: ReadonlySet<string> = new Set(MARKET_LOGOS)
+const logoUrl = (id: string): string => `${import.meta.env.BASE_URL}logos/${id}.png`
+
 /**
- * One product: who and what, the headline rate, the rate lines and a ladder, the conditions a
- * tap away, the dates, and the sources it was read from. Every toggle is a real button.
+ * The provider's logo, fetched at build time into `public/logos/` (never from its site), with
+ * the platform's mark on a bank sold through one; the provider's initials when there is none.
+ * Decorative: the name is beside it.
+ */
+function ProviderLogo({ view }: { readonly view: MarketView }): ReactNode {
+  const { logo, mark } = logoOf(view, LOGOS)
+  const [failed, setFailed] = useState(false)
+  const drawn = failed ? null : logo
+  return (
+    <span className="relative size-9 shrink-0" aria-hidden data-logo={drawn ?? 'monogram'}>
+      {drawn === null ? (
+        <span className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-md text-xs font-semibold">
+          {monogram(view.providerName)}
+        </span>
+      ) : (
+        <img
+          src={logoUrl(drawn)}
+          alt=""
+          width={36}
+          height={36}
+          loading="lazy"
+          className="size-9 rounded-md bg-white object-contain"
+          onError={() => setFailed(true)}
+        />
+      )}
+      {drawn !== null && mark !== null && (
+        <img
+          src={logoUrl(mark)}
+          alt=""
+          width={16}
+          height={16}
+          loading="lazy"
+          data-mark={mark}
+          className="ring-card absolute -right-1 -bottom-1 size-4 rounded-sm bg-white ring-2"
+        />
+      )}
+    </span>
+  )
+}
+
+/** A quiet chip: a ladder's rung, the kind of account. */
+const QUIET_CHIP = 'bg-muted rounded-md px-2 py-0.5 text-xs whitespace-nowrap tabular-nums'
+
+/**
+ * One product. Closed: the logo, who and what, the headline rate, the category with the kind
+ * of account and the term, the ladder, and the sources at the foot. "See more" holds the rest:
+ * the rate lines, conditions, what is not stated, the dates, and a source's stored row.
  */
 function ViewCard({
   view,
+  open,
+  onOpen,
   openSource,
   onOpenSource,
 }: {
   readonly view: MarketView
+  readonly open: boolean
+  readonly onOpen: (open: boolean) => void
   readonly openSource: string | null
   readonly onOpenSource: (key: string | null) => void
 }): ReactNode {
-  const [conditionsOpen, setConditionsOpen] = useState(false)
-  const conditionsId = useId()
+  const moreId = useId()
   const detailId = useId()
-  const conditions: Line[] = [
-    ...view.conditions,
-    ...(view.unknown.length > 0 ? [{ label: 'Not stated', value: view.unknown.join(', ') }] : []),
-  ]
-  const ConditionsChevron = conditionsOpen ? ChevronDownIcon : ChevronRightIcon
-  const quiet = [view.categoryLabel, view.termLabel, view.access].filter(
-    (part): part is string => part !== null && part !== '',
-  )
-  const opened = view.sources.find((source) => sourceKey(source) === openSource)
+  const Chevron = open ? ChevronDownIcon : ChevronRightIcon
+  const kind = accountKindOf(view)
+  const opened = open ? view.sources.find((source) => sourceKey(source) === openSource) : undefined
   const sourceLabel = (source: MarketViewSource): string => {
     const same = view.sources.filter((s) => s.source === source.source)
     const label = SOURCE_LABELS[source.source]
@@ -845,39 +1094,34 @@ function ViewCard({
   }
 
   return (
-    <Card className="gap-3 py-4">
-      <div className="flex items-start justify-between gap-3 px-4">
-        <h2 className="min-w-0 leading-snug break-words">
-          <span className="text-muted-foreground block text-xs">{view.providerName}</span>
-          <span className="block font-medium">{view.name}</span>
-        </h2>
-        {view.headline.label !== '' && (
-          <p className="shrink-0 text-right text-lg leading-tight font-semibold tabular-nums">
-            {view.headline.label}
-          </p>
-        )}
+    <Card className="w-full gap-3 py-4" data-open={open}>
+      <div className="flex items-start gap-3 px-4">
+        <ProviderLogo view={view} />
+        {/* The name has the card's width; the headline rate sits under the header. */}
+        <div className="min-w-0 flex-1 space-y-1">
+          <h2 className="leading-snug break-words">
+            <span className="text-muted-foreground block text-xs">{providerLabel(view)}</span>
+            <span className={cn('block font-medium', !open && 'line-clamp-2')}>{view.name}</span>
+          </h2>
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+            <span>{view.categoryLabel}</span>
+            {kind !== null && <span className={QUIET_CHIP}>{kind}</span>}
+            {view.termLabel !== null && view.termLabel !== '' && <span>· {view.termLabel}</span>}
+            {view.retired && <Badge variant="secondary">gone from the source</Badge>}
+          </div>
+        </div>
       </div>
 
-      <div className="-mt-1 flex flex-wrap items-center gap-2 px-4">
-        <p className="text-muted-foreground text-xs break-words">{quiet.join(' · ')}</p>
-        {view.retired && <Badge variant="secondary">gone from the source</Badge>}
-      </div>
-
-      {view.lines.length > 0 && (
-        <ul className="space-y-0.5 px-4 text-sm break-words">
-          {view.lines.map((line, index) => (
-            <li key={`${String(index)} ${line}`}>{line}</li>
-          ))}
-        </ul>
+      {view.headline.label !== '' && (
+        <p className="px-4 text-2xl leading-tight font-semibold tabular-nums">
+          {view.headline.label}
+        </p>
       )}
 
       {view.ladder.length > 0 && (
         <ul aria-label="Terms" className="flex flex-wrap gap-1.5 px-4">
           {view.ladder.map((rung) => (
-            <li
-              key={rung.months}
-              className="bg-muted rounded-md px-2 py-0.5 text-xs whitespace-nowrap tabular-nums"
-            >
+            <li key={rung.months} className={QUIET_CHIP}>
               <span className="text-muted-foreground">{shortTerm(rung.months)}</span>{' '}
               {String(rung.ratePct)}%
             </li>
@@ -885,68 +1129,117 @@ function ViewCard({
         </ul>
       )}
 
-      {conditions.length > 0 && (
-        <div className="min-w-0 px-2">
-          <Button
-            variant="ghost"
-            className="h-11 w-full justify-start px-2 pointer-fine:h-8"
-            aria-expanded={conditionsOpen}
-            aria-controls={conditionsId}
-            onClick={() => setConditionsOpen((was) => !was)}
-          >
-            <ConditionsChevron aria-hidden />
-            Conditions ({conditions.length})
-          </Button>
-          {conditionsOpen && (
-            <div id={conditionsId} className="px-2 pb-1">
-              <Lines lines={conditions} stacked />
+      <div className="min-w-0 px-2">
+        <Button
+          variant="ghost"
+          className="h-11 w-full justify-start px-2 pointer-fine:h-8"
+          aria-expanded={open}
+          aria-controls={moreId}
+          onClick={() => onOpen(!open)}
+        >
+          <Chevron aria-hidden />
+          {open ? 'See less' : 'See more'}
+        </Button>
+      </div>
+
+      {open && (
+        <div
+          id={moreId}
+          role="region"
+          aria-label={`More on ${view.name}`}
+          className="@container -mt-1 space-y-4 px-4"
+        >
+          <div className="grid gap-4 @2xl:grid-cols-2">
+            {view.lines.length > 0 && (
+              <More title="Rates">
+                <ul className="space-y-0.5 text-sm break-words">
+                  {view.lines.map((line, index) => (
+                    <li key={`${String(index)} ${line}`}>{line}</li>
+                  ))}
+                </ul>
+              </More>
+            )}
+            {view.conditions.length > 0 && (
+              <More title="Conditions">
+                <Lines lines={view.conditions} stacked />
+              </More>
+            )}
+            {view.unknown.length > 0 && (
+              <More title="Not stated">
+                <p className="text-sm break-words">{view.unknown.join(', ')}</p>
+              </More>
+            )}
+            <More title="Dates">
+              <p className="text-sm">
+                <span className={cn(view.stale && 'text-destructive font-medium')}>
+                  Checked {shortDate(view.checkedAt)}
+                  {view.stale && ' (stale)'}
+                </span>
+                {' · '}
+                {view.lastChangedAt === null
+                  ? 'No change recorded'
+                  : `Changed ${shortDate(view.lastChangedAt)}`}
+              </p>
+            </More>
+          </div>
+          {opened === undefined ? (
+            <p className="text-muted-foreground text-xs">
+              Open a source below for the stored row and its history.
+            </p>
+          ) : (
+            <div
+              id={detailId}
+              role="region"
+              aria-label={`${sourceLabel(opened)} row`}
+              className="border-t pt-3"
+            >
+              <SourceDetail source={opened} />
             </div>
           )}
         </div>
       )}
 
-      <p className="text-muted-foreground px-4 text-xs">
-        <span className={cn(view.stale && 'text-destructive font-medium')}>
-          Checked {shortDate(view.checkedAt)}
-          {view.stale && ' (stale)'}
-        </span>
-        {' · '}
-        {view.lastChangedAt === null
-          ? 'No change recorded'
-          : `Changed ${shortDate(view.lastChangedAt)}`}
-      </p>
-
-      <div className="flex flex-wrap items-center gap-1.5 border-t px-4 pt-3">
-        <span className="text-muted-foreground mr-1 text-xs">Sources</span>
-        {view.sources.map((source) => {
+      <p className="text-muted-foreground mt-auto flex flex-wrap items-center gap-x-1.5 border-t px-4 pt-2 text-xs">
+        <span>Sources:</span>
+        {view.sources.map((source, index) => {
           const key = sourceKey(source)
-          const open = key === openSource
+          const shown = opened !== undefined && key === openSource
           return (
-            <Button
-              key={key}
-              variant={open ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-11 rounded-full px-3 text-xs pointer-fine:h-7"
-              aria-expanded={open}
-              aria-controls={open ? detailId : undefined}
-              onClick={() => onOpenSource(open ? null : key)}
-            >
-              {sourceLabel(source)}
-            </Button>
+            <Fragment key={key}>
+              {index > 0 && <span aria-hidden>·</span>}
+              <button
+                type="button"
+                // 44px tall for a finger; the text stays small.
+                className={cn(
+                  'focus-visible:ring-ring/50 inline-flex min-h-11 items-center rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] pointer-fine:min-h-6',
+                  shown ? 'text-foreground underline' : 'text-primary',
+                )}
+                aria-expanded={shown}
+                aria-controls={shown ? detailId : undefined}
+                onClick={() => onOpenSource(shown ? null : key)}
+              >
+                {sourceLabel(source)}
+              </button>
+            </Fragment>
           )
         })}
-      </div>
-
-      {opened !== undefined && (
-        <div
-          id={detailId}
-          role="region"
-          aria-label={`${sourceLabel(opened)} row`}
-          className="border-t px-4 pt-3"
-        >
-          <SourceDetail source={opened} />
-        </div>
-      )}
+        {view.stale && <span className="text-destructive ml-auto font-medium">Stale</span>}
+      </p>
     </Card>
+  )
+}
+
+function More({
+  title,
+  children,
+}: {
+  readonly title: string
+  readonly children: ReactNode
+}): ReactNode {
+  return (
+    <section className="min-w-0 space-y-1">
+      <h3 className="text-muted-foreground text-xs">{title}</h3>
+      {children}
+    </section>
   )
 }

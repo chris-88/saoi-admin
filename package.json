@@ -19,7 +19,8 @@
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run check:bundle",
     "api:generate": "openapi-typescript ${SAOI_OPENAPI_URL:-https://api.saoi.ie/api/openapi.json} -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "shared:sync": "node scripts/sync-shared.ts",
-    "shared:check": "node scripts/sync-shared.ts check"
+    "shared:check": "node scripts/sync-shared.ts check",
+    "logos:fetch": "node scripts/fetch-logos.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

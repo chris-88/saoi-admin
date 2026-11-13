@@ -2,6 +2,7 @@ import type { MarketGroup, RateBounds } from '@/admin/marketFormat'
 import { withinRate } from '@/admin/marketFormat'
 import {
   ADMIN_MARKET_CATEGORIES,
+  type AdminMarketAccess,
   type AdminMarketCategory,
   type AdminMarketView,
   type AdminMarketViews,
@@ -81,13 +82,133 @@ export function termBucketsOf(view: MarketView): ReadonlySet<TermBucket> {
   )
 }
 
+/** Every term a view offers, in months: a ladder's rungs, or its one term; none for variable. */
+export function termMonthsOf(view: MarketView): number[] {
+  if (view.ladder.length > 0) return view.ladder.map((rung) => rung.months)
+  return view.termMonths === null ? [] : [view.termMonths]
+}
+
+/** Each bucket's months, both ends included, so a preset can be drawn on the slider. */
+const BUCKET_MONTHS: Readonly<Record<Exclude<TermBucket, 'none'>, readonly [number, number]>> = {
+  up_to_6: [0, 6],
+  '7_to_12': [7, 12],
+  '13_to_24': [13, 24],
+  '2_to_3_years': [25, 36],
+  '4_to_5_years': [37, 60],
+  over_5_years: [61, Number.POSITIVE_INFINITY],
+}
+
+/**
+ * The Term filter, one value: nothing chosen, some presets (the buckets), or a range of months
+ * set on the slider. Choosing a preset replaces a range; moving the slider replaces the presets.
+ */
+export type TermFilter =
+  | { readonly kind: 'any' }
+  | { readonly kind: 'buckets'; readonly buckets: readonly TermBucket[] }
+  | { readonly kind: 'range'; readonly min: number; readonly max: number }
+
+export const ANY_TERM: TermFilter = { kind: 'any' }
+
+/** A preset choice; choosing none is no filter. */
+export function termFromBuckets(buckets: readonly string[]): TermFilter {
+  const picked = TERM_BUCKETS.filter((bucket) => buckets.includes(bucket))
+  return picked.length === 0 ? ANY_TERM : { kind: 'buckets', buckets: picked }
+}
+
+/**
+ * The slider's stops: every term in months that a termed product offers, shortest first, so
+ * each step lands on a term somebody sells.
+ */
+export function termStops(views: readonly MarketView[]): number[] {
+  const months = new Set<number>()
+  for (const view of views) {
+    if (TERMED_CATEGORIES.has(view.category)) for (const m of termMonthsOf(view)) months.add(m)
+  }
+  return [...months].sort((a, b) => a - b)
+}
+
+/** Where the slider's two thumbs sit, as indexes into the stops, for the Term value. */
+export function termSpan(term: TermFilter, stops: readonly number[]): [number, number] {
+  const full: [number, number] = [0, Math.max(0, stops.length - 1)]
+  const span = (min: number, max: number): [number, number] => {
+    const from = stops.findIndex((m) => m >= min)
+    const to = stops.findLastIndex((m) => m <= max)
+    return from === -1 || to === -1 || from > to ? full : [from, to]
+  }
+  switch (term.kind) {
+    case 'any':
+      return full
+    case 'range':
+      return span(term.min, term.max)
+    case 'buckets': {
+      const ranges = term.buckets.flatMap((bucket) =>
+        bucket === 'none' ? [] : [BUCKET_MONTHS[bucket]],
+      )
+      if (ranges.length === 0) return full
+      return span(
+        Math.min(...ranges.map(([min]) => min)),
+        Math.max(...ranges.map(([, max]) => max)),
+      )
+    }
+    default:
+      return assertNever(term)
+  }
+}
+
+/** The slider's thumbs as a Term value: both at the ends is no filter. */
+export function termFromSpan(stops: readonly number[], span: readonly number[]): TermFilter {
+  const from = span[0] ?? 0
+  const to = span[1] ?? stops.length - 1
+  const min = stops[from]
+  const max = stops[to]
+  if (min === undefined || max === undefined) return ANY_TERM
+  return from === 0 && to === stops.length - 1 ? ANY_TERM : { kind: 'range', min, max }
+}
+
+function matchesTerm(view: MarketView, term: TermFilter): boolean {
+  if (!TERMED_CATEGORIES.has(view.category)) return true
+  switch (term.kind) {
+    case 'any':
+      return true
+    case 'buckets':
+      return [...termBucketsOf(view)].some((bucket) => term.buckets.includes(bucket))
+    case 'range':
+      // A variable product has no term to fall in a range.
+      return termMonthsOf(view).some((m) => m >= term.min && m <= term.max)
+    default:
+      return assertNever(term)
+  }
+}
+
+/** "3 months", "18 months", "2 years", "10 years". */
+export function monthsLabel(months: number): string {
+  if (months >= 24 && months % 12 === 0) return `${String(months / 12)} years`
+  return months === 1 ? '1 month' : `${String(months)} months`
+}
+
+/** The Term value in words, for the filter summary: "2 terms", "6 months to 2 years". */
+export function termSummary(term: TermFilter): string {
+  switch (term.kind) {
+    case 'any':
+      return ''
+    case 'buckets':
+      return term.buckets.length === 1 ? '1 term' : `${String(term.buckets.length)} terms`
+    case 'range':
+      return term.min === term.max
+        ? monthsLabel(term.min)
+        : `${monthsLabel(term.min)} to ${monthsLabel(term.max)}`
+    default:
+      return assertNever(term)
+  }
+}
+
 // ---- Filters and sort -------------------------------------------------------------------------
 
 export type ViewFilters = {
   readonly sources: readonly string[]
   readonly providers: readonly string[]
   readonly categories: readonly string[]
-  readonly terms: readonly string[]
+  readonly term: TermFilter
   readonly rate: RateBounds
 }
 
@@ -101,44 +222,56 @@ export function matchesFilters(view: MarketView, filters: ViewFilters): boolean 
       view.sources.some((source) => filters.sources.includes(source.source))) &&
     chosen(filters.providers, view.provider) &&
     chosen(filters.categories, view.category) &&
-    (filters.terms.length === 0 ||
-      !TERMED_CATEGORIES.has(view.category) ||
-      [...termBucketsOf(view)].some((bucket) => filters.terms.includes(bucket))) &&
+    matchesTerm(view, filters.term) &&
     withinRate(view.headline.ratePct, filters.rate)
   )
 }
 
-export const SORTS = ['rate', 'name', 'changed', 'checked'] as const
+export const SORTS = ['rate', 'rate_low', 'name', 'changed', 'checked'] as const
 export type SortKey = (typeof SORTS)[number]
 export const DEFAULT_SORT: SortKey = 'name'
 
 export const SORT_LABELS: Readonly<Record<SortKey, string>> = {
   rate: 'Rate, high to low',
+  rate_low: 'Rate, low to high',
   name: 'Name',
   changed: 'Recently changed',
   checked: 'Recently checked',
 }
 
+/** Who a card names: the bank, or "Raisin · Nordax Bank" for a bank sold through Raisin. */
+export function providerLabel(view: MarketView): string {
+  return view.platform === null ? view.providerName : `${view.platform} · ${view.providerName}`
+}
+
 const byName = (a: MarketView, b: MarketView): number =>
-  a.providerName.localeCompare(b.providerName, 'en-IE') || a.name.localeCompare(b.name, 'en-IE')
+  providerLabel(a).localeCompare(providerLabel(b), 'en-IE') || a.name.localeCompare(b.name, 'en-IE')
 
 /** Newest first, a missing date last. ISO dates compare as strings. */
 const byDateDescending = (a: string | null, b: string | null): number =>
   a === b ? 0 : a === null ? 1 : b === null ? -1 : b.localeCompare(a)
 
+/** By rate either way; a view with no rate goes last in both. */
+const byRate =
+  (direction: 1 | -1) =>
+  (a: MarketView, b: MarketView): number => {
+    const x = a.headline.ratePct
+    const y = b.headline.ratePct
+    return x === y ? 0 : x === null ? 1 : y === null ? -1 : direction * (x - y)
+  }
+
 /**
  * The sort, each with the name as the tie-break. "Name" is provider, then product, so one
- * provider's products sit together. A view with no rate, or never changed, goes last.
+ * provider's products sit together, and Raisin's banks together under R. A view with no rate,
+ * or never changed, goes last.
  */
 export function sortViews(views: readonly MarketView[], key: SortKey): MarketView[] {
   const compare = ((): ((a: MarketView, b: MarketView) => number) => {
     switch (key) {
       case 'rate':
-        return (a, b) => {
-          const x = a.headline.ratePct
-          const y = b.headline.ratePct
-          return x === y ? 0 : x === null ? 1 : y === null ? -1 : y - x
-        }
+        return byRate(-1)
+      case 'rate_low':
+        return byRate(1)
       case 'name':
         return () => 0
       case 'changed':
@@ -153,18 +286,79 @@ export function sortViews(views: readonly MarketView[], key: SortKey): MarketVie
 }
 
 function assertNever(value: never): never {
-  throw new Error(`Unhandled sort: ${String(value)}`)
+  throw new Error(`Unhandled value: ${JSON.stringify(value)}`)
 }
 
 export type Option = { readonly value: string; readonly label: string }
+
+const byLabel = (a: Option, b: Option): number => a.label.localeCompare(b.label, 'en-IE')
 
 /** Each provider once, by its readable name. */
 export function providerOptions(views: readonly MarketView[]): Option[] {
   const names = new Map<string, string>()
   for (const view of views) names.set(view.provider, view.providerName)
-  return [...names.entries()]
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'en-IE'))
+  return [...names.entries()].map(([value, label]) => ({ value, label })).sort(byLabel)
+}
+
+export type Platform = NonNullable<MarketView['platform']>
+
+/**
+ * The Provider filter's choices: the providers dealt with directly, then each platform's banks
+ * under its name. A provider with any product on a platform is listed under it.
+ */
+export function providerGroups(views: readonly MarketView[]): {
+  readonly direct: Option[]
+  readonly platforms: { readonly platform: Platform; readonly options: Option[] }[]
+} {
+  const onPlatform = new Map<string, Platform>()
+  for (const view of views) if (view.platform !== null) onPlatform.set(view.provider, view.platform)
+  const all = providerOptions(views)
+  const platforms = [...new Set(onPlatform.values())].sort().map((platform) => ({
+    platform,
+    options: all.filter((option) => onPlatform.get(option.value) === platform),
+  }))
+  return { direct: all.filter((option) => !onPlatform.has(option.value)), platforms }
+}
+
+// ---- The card ------------------------------------------------------------------------------
+
+/**
+ * The kind of account, for the chip beside the category: a deposit is always a fixed term; a
+ * savings account is what its `access` says ("Instant access", "Notice", "Regular saver").
+ */
+export function accountKindOf(view: MarketView): AdminMarketAccess | null {
+  if (view.category === 'deposits') return 'Fixed term'
+  return view.category === 'savings' ? view.access : null
+}
+
+/**
+ * Which logo a card draws, from the provider ids with a fetched logo: its own, with the
+ * platform's mark on it when it is sold through one; the platform's alone when the bank has
+ * none; else null, for the monogram.
+ */
+export function logoOf(
+  view: MarketView,
+  logos: ReadonlySet<string>,
+): { readonly logo: string | null; readonly mark: string | null } {
+  const platform = view.platform === null ? null : view.platform.toLowerCase()
+  if (logos.has(view.provider)) {
+    return { logo: view.provider, mark: platform !== null && logos.has(platform) ? platform : null }
+  }
+  if (platform !== null && logos.has(platform)) return { logo: platform, mark: null }
+  return { logo: null, mark: null }
+}
+
+/** "BI" for Bank of Ireland, "AIB", "PTSB", "AM" for Avant Money, "B" for bunq. */
+export function monogram(name: string): string {
+  const words = name.split(/[\s-]+/).filter((word) => /^[\p{Lu}\d]/u.test(word))
+  if (words.length >= 2)
+    return words
+      .slice(0, 2)
+      .map((word) => word.charAt(0))
+      .join('')
+  const word = words[0] ?? name.trim()
+  if (word.length <= 4 && word === word.toUpperCase()) return word
+  return word.charAt(0).toUpperCase()
 }
 
 // ---- Sources ---------------------------------------------------------------------------------

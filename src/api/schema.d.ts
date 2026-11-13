@@ -15328,6 +15328,13 @@ export interface components {
         provider: string
         /** @description The readable name (`Bank of Ireland`); the id when none is recorded. */
         providerName: string
+        /**
+         * @description The platform the product is sold through (`Raisin`), as the engine marks the view; null when it is opened with the provider directly. The console shows `Raisin · <providerName>` and groups these under Raisin.
+         * @enum {string|null}
+         */
+        platform: 'Raisin' | null
+        /** @description The provider’s own public website domain (`bankofireland.com`), for its logo; never the platform’s. Null where none is recorded. */
+        providerDomain: string | null
         /** @enum {string} */
         category:
           'savings' | 'deposits' | 'mortgages' | 'loans' | 'credit_cards' | 'current_accounts'
@@ -15350,8 +15357,11 @@ export interface components {
           months: number
           ratePct: number
         }[]
-        /** @description Savings and deposits: "Instant access", "31 days’ notice", "Fixed term". */
-        access: string | null
+        /**
+         * @description A short chip label from a fixed set, for savings and deposits; null for anything else. `Instant access`: withdraw any time. `Notice`: withdrawals need notice (the days are in `conditions`/`lines`). `Regular saver`: a monthly saver. `Fixed term`: money placed for a term.
+         * @enum {string|null}
+         */
+        access: 'Instant access' | 'Notice' | 'Regular saver' | 'Fixed term' | null
         /** @description The rates as the comparison engine words them. */
         lines: string[]
         /** @description Limits, fees, bonus, guarantee, who can open it, the checks the data cannot make, attribution. */
