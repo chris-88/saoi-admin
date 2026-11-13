@@ -320,7 +320,10 @@ describe('the market views at desk width', () => {
       expect(chip).not.toHaveClass('font-medium', 'font-semibold')
     }
     // The provider line shares the first row; the name runs under both.
-    expect(boi.getByText('Bank of Ireland')).toHaveClass('col-start-1', 'row-start-1')
+    // It keeps to one line, cut with an ellipsis; the chips never shrink.
+    expect(boi.getByText('Bank of Ireland')).toHaveClass('col-start-1', 'row-start-1', 'truncate')
+    expect(sources).toHaveClass('shrink-0')
+    expect(sources).not.toHaveClass('flex-wrap')
     expect(boi.queryByText('Stale')).not.toBeInTheDocument()
   })
 

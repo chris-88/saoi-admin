@@ -1121,7 +1121,10 @@ function ViewCard({
          */}
         <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
           <h2 className="contents leading-snug">
-            <span className="text-muted-foreground col-start-1 row-start-1 block text-xs leading-snug break-words">
+            <span
+              title={providerLabel(view)}
+              className="text-muted-foreground col-start-1 row-start-1 block truncate text-xs leading-snug"
+            >
               {providerLabel(view)}
             </span>
             <span
@@ -1135,7 +1138,7 @@ function ViewCard({
           </h2>
           <ul
             aria-label="Sources"
-            className="col-start-2 row-start-1 flex flex-wrap justify-end gap-1 pt-px"
+            className="col-start-2 row-start-1 flex shrink-0 justify-end gap-1 pt-px"
           >
             {view.sources.map((source) => {
               const key = sourceKey(source)
