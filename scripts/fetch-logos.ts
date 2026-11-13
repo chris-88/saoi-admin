@@ -21,12 +21,11 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 /**
- * Each provider id's public website, after the backend's record (`PROVIDER_DOMAINS` in
- * `supabase/functions/_shared/market/provider-names.ts` of `chris-88/saoi`; the API sends it as
- * `providerDomain`), with three that did not resolve on 2026-11-13 corrected to the site that
- * does: An Post Money (`anpost.com`), Núa (`nuamoney.com`) and Nordax (`nordax.com`). A bank
- * sold through Raisin has its own site; `raisin` is the platform's mark, drawn on those banks'
- * logos. Null where there is no one site: the credit unions are many separate societies.
+ * Each provider id's public website: the list agreed on 2026-11-13, which the backend's
+ * `PROVIDER_DOMAINS` (`supabase/functions/_shared/market/provider-names.ts` in `chris-88/saoi`,
+ * sent as `providerDomain`) is being corrected to; four of its first domains did not resolve.
+ * A bank sold through Raisin has its own site; `raisin` is the platform's mark, drawn on those
+ * banks' logos. Null where there is no one site: the credit unions are many separate societies.
  */
 const DOMAINS: Readonly<Record<string, string | null>> = {
   aib: 'aib.ie',
@@ -46,7 +45,7 @@ const DOMAINS: Readonly<Record<string, string | null>> = {
   state_savings: 'statesavings.ie',
   bankinter: 'bankinter.com',
   raisin_bank: 'raisin.ie',
-  banca_cf: 'bancacf.it',
+  banca_cf: 'bancacfplus.it',
   nordax: 'nordax.com',
   creditplus: 'creditplus.de',
   ibl_banca: 'iblbanca.it',
