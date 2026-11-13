@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "check:bundle": "node scripts/check-bundle-secrets.ts",
+    "check:bundle": "node scripts/check-bundle-secrets.ts && node scripts/check-service-worker.ts",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run check:bundle",
     "api:generate": "openapi-typescript ${SAOI_OPENAPI_URL:-https://api.saoi.ie/api/openapi.json} -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "shared:sync": "node scripts/sync-shared.ts",

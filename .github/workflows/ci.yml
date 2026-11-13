@@ -26,7 +26,8 @@ jobs:
       - run: npm ci
 
       # The same command as local: typecheck, lint, format:check, test, build and
-      # the published-bundle secret scan (the site is public, anything in dist/ is readable).
+      # the published-bundle secret scan (the site is public, anything in dist/ is readable)
+      # and the service worker's rules (scripts/check-service-worker.ts).
       - name: Check
         run: npm run check
         env:
