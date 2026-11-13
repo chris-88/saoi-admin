@@ -76,6 +76,9 @@ If you can't satisfy an item, say so explicitly rather than quietly skipping it.
   `GET /api/admin/market-products`. One tree, three layouts by viewport: a phone (under 768px)
   has the filters in a bottom sheet over one column, a tablet (768 to 1023, the iPad PWA in
   portrait) a foldable panel above two, the desk a sticky left rail beside three.
+- The shell's sidebar (`AdminConsole.tsx`, `useSidebarOpen`): open at 1024px and up; under it
+  (768 to 1023, the iPad in portrait) it starts as the icon rail and remembers the viewer's
+  choice in `localStorage`; under 768 it is a drawer.
 - `src/shared/`: copies of the backend's contracts, domain, persona, refusals and tenant domain
   config that the screens import (`@contracts`, `@domain`, `@llm`, `@tenants`).
   `npm run shared:sync` refreshes them from `../saoi` (or `SAOI_DIR`), `npm run shared:check`
