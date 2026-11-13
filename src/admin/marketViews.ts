@@ -332,20 +332,21 @@ export function accountKindOf(view: MarketView): AdminMarketAccess | null {
 }
 
 /**
- * Which logo a card draws, from the provider ids with a fetched logo: its own, with the
- * platform's mark on it when it is sold through one; the platform's alone when the bank has
- * none; else null, for the monogram.
+ * Which logo a card draws, from the provider ids with a fetched logo and those with a brand
+ * colour: its own, with the platform's mark on it when it is sold through one; when it has none,
+ * its monogram in its brand colour with the platform's mark, or else the platform's logo alone;
+ * else null, for the monogram.
  */
 export function logoOf(
   view: MarketView,
   logos: ReadonlySet<string>,
+  branded: ReadonlySet<string> = new Set(),
 ): { readonly logo: string | null; readonly mark: string | null } {
   const platform = view.platform === null ? null : view.platform.toLowerCase()
-  if (logos.has(view.provider)) {
-    return { logo: view.provider, mark: platform !== null && logos.has(platform) ? platform : null }
-  }
-  if (platform !== null && logos.has(platform)) return { logo: platform, mark: null }
-  return { logo: null, mark: null }
+  const platformMark = platform !== null && logos.has(platform) ? platform : null
+  if (logos.has(view.provider)) return { logo: view.provider, mark: platformMark }
+  if (branded.has(view.provider)) return { logo: null, mark: platformMark }
+  return { logo: platformMark, mark: null }
 }
 
 /** "BI" for Bank of Ireland, "AIB", "PTSB", "AM" for Avant Money, "B" for bunq. */

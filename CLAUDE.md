@@ -74,14 +74,16 @@ If you can't satisfy an item, say so explicitly rather than quietly skipping it.
   `GET /api/admin/market/views` (the engine's views: a bank row and its CCPC twin folded, CCPC's
   terms in a ladder). A closed card is one shape, so a row's cards are one height: the logo,
   provider (`Raisin · Nordax Bank` for a bank sold through Raisin), name, category with the
-  kind-of-account chip (`access`) and term, the headline rate, the ladder, and one quiet line at
-  the foot, "Sources: CCPC · Provider site". One "See more" holds the rate lines, conditions,
-  what is not stated and the dates, and a source on that line opens its raw row and history from
-  `GET /api/admin/market-products` inside it. The Provider filter groups Raisin's banks under a
+  kind-of-account chip (`access`) and term, the headline rate and the ladder, with the sources
+  ("CCPC", "Provider site") and a red "Stale" as small chips in the top right, beside the
+  provider line. One "See more" holds the rate lines, conditions, what is not stated and the
+  dates, and a source chip opens its raw row and history from `GET /api/admin/market-products`
+  inside it. The Provider filter groups Raisin's banks under a
   Raisin chip that chooses them all; Term is one value, set by its presets or by a two-thumb
   slider over the terms on sale. Logos are `public/logos/<provider>.png`, fetched by hand with
   `npm run logos:fetch` (needs `vips`) and committed, listed in `src/admin/marketLogos.ts`; the
-  console never requests a provider's site, and a provider without one shows its initials. One
+  console never requests a provider's site, and a provider without one shows its initials on its
+  brand colour (`src/admin/marketBrand.ts`, sourced per entry; neutral for an unknown id). One
   tree, three layouts by viewport: a phone (under 768px) has the filters in a bottom sheet over
   one column, a tablet (768 to 1023, the iPad PWA in portrait) a foldable panel above two, the
   desk a sticky left rail beside three.
