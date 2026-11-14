@@ -18,8 +18,9 @@ import {
   type AdminMarketViews,
   type MarketProductList,
 } from '@contracts/market.ts'
-import { callAdminApi, listMarketProducts, listMarketViews } from '@/lib/saoiApi'
+import { aiUsage, callAdminApi, listMarketProducts, listMarketViews } from '@/lib/saoiApi'
 import {
+  aiUsageSchema,
   analyticsSchema,
   catalogueOverridesSchema,
   collaboratorListSchema,
@@ -27,6 +28,7 @@ import {
   guardrailTestSchema,
   personaPreviewSchema,
   purgeResultSchema,
+  type AiUsage,
   type Analytics,
   type CatalogueOverrides,
   type GuardrailTest,
@@ -69,6 +71,8 @@ export const adminApi = {
     guardrailTestSchema.parse(await call({ action: 'test_guardrail', message })),
   analytics: async (period: Period): Promise<Analytics> =>
     analyticsSchema.parse(await call({ action: 'analytics', period })),
+  aiUsage: async (period: Period, cursor?: string): Promise<AiUsage> =>
+    aiUsageSchema.parse(await aiUsage(period, cursor)),
 
   // §44: what people said about it, and who asked to work on it.
   listFeedback: async (period: Period): Promise<FeedbackList> =>

@@ -50,6 +50,7 @@ export const queryKeys = {
     products: () => ['admin', 'product-catalogue'] as const,
     rates: () => ['admin', 'mortgage-rates'] as const,
     analytics: (period: string) => ['admin', 'analytics', period] as const,
+    aiUsage: (period: string) => ['admin', 'ai-usage', period] as const,
     /** §44: what people said about it, and who asked to work on it. */
     feedback: (period: string) => ['admin', 'feedback', period] as const,
     collaborators: () => ['admin', 'collaborators'] as const,

@@ -9,6 +9,7 @@ import { adminApi } from '@/admin/adminClient'
 import { CasesWorkspace } from '@/admin/CasesWorkspace'
 import { EngineScreen } from '@/admin/EngineScreen'
 import { ProductsScreen } from '@/admin/ProductsScreen'
+import { AiUsageScreen } from '@/admin/AiUsageScreen'
 import { AnalyticsScreen } from '@/admin/AnalyticsScreen'
 import { FeedbackScreen } from '@/admin/FeedbackScreen'
 import { MarketScreen } from '@/admin/MarketScreen'
@@ -35,6 +36,7 @@ type Section =
   | 'engine'
   | 'catalogue'
   | 'analytics'
+  | 'ai-usage'
   | 'forms'
   | 'feedback'
   | 'collaborators'
@@ -55,6 +57,7 @@ export function AdminOverview({ section }: { readonly section?: Section }): Reac
   if (section === 'catalogue') return <ProductsScreen />
   if (section === 'forms') return <FormsScreen />
   if (section === 'analytics') return <Analytics />
+  if (section === 'ai-usage') return <AiUsage />
   if (section === 'feedback') return <Feedback />
   if (section === 'collaborators') return <CollaboratorsScreen />
   if (section === 'market') return <MarketScreen />
@@ -82,6 +85,20 @@ function Analytics(): ReactNode {
         <PeriodSelect value={period} onChange={setPeriod} />
       </div>
       <AnalyticsScreen period={period} />
+    </div>
+  )
+}
+
+/** The same period as Analytics, so the two screens count over one window. */
+function AiUsage(): ReactNode {
+  const [period, setPeriod] = usePeriod()
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <PeriodSelect value={period} onChange={setPeriod} />
+      </div>
+      <AiUsageScreen period={period} />
     </div>
   )
 }
