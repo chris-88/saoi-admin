@@ -31,13 +31,16 @@ import { HOST_LABELS, askedText, callTime, figureLabel, toolLabel } from '@/admi
 import type { AiUsage, AiUsageCall, Period } from '@contracts/admin.ts'
 import { MCP_HOSTS, type McpHost } from '@contracts/telemetry.ts'
 
-/** One colour per assistant, from the chart tokens; the same in every panel. */
+/**
+ * One colour per assistant, from the chart tokens; the same in every panel. The two teals
+ * (`--chart-1`, `--chart-2`) are kept apart, so Claude and ChatGPT side by side are told apart.
+ */
 const hostConfig = {
   claude: { label: HOST_LABELS.claude, color: 'var(--chart-1)' },
-  chatgpt: { label: HOST_LABELS.chatgpt, color: 'var(--chart-2)' },
-  gemini: { label: HOST_LABELS.gemini, color: 'var(--chart-3)' },
-  cursor: { label: HOST_LABELS.cursor, color: 'var(--chart-4)' },
-  other: { label: HOST_LABELS.other, color: 'var(--chart-5)' },
+  chatgpt: { label: HOST_LABELS.chatgpt, color: 'var(--chart-3)' },
+  gemini: { label: HOST_LABELS.gemini, color: 'var(--chart-4)' },
+  cursor: { label: HOST_LABELS.cursor, color: 'var(--chart-5)' },
+  other: { label: HOST_LABELS.other, color: 'var(--chart-2)' },
 } satisfies ChartConfig
 
 /**
