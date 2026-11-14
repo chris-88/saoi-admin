@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { askedText, callTime, figureLabel, toolLabel } from '@/admin/aiUsageFormat'
+import { askedText, callTime, figureLabel, keyWords, toolLabel } from '@/admin/aiUsageFormat'
 
 describe('askedText', () => {
   it('says the bands with what they are and the choices in words', () => {
@@ -16,10 +16,20 @@ describe('askedText', () => {
 
   it('keeps search words and an id as given, numbers with their name', () => {
     expect(askedText({ category: 'deposit', horizonMonths: 24, providers: ['boi', 'aib'] })).toBe(
-      'deposit · horizonMonths 24 · boi, aib',
+      'deposit · 24 months · boi, aib',
     )
     expect(askedText({ id: 'boi:savings.supersaver' })).toBe('boi:savings.supersaver')
     expect(askedText({ focus: 'saving for a house' })).toBe('“saving for a house”')
+  })
+
+  it('never shows a raw key: known numbers read as phrases, unknown keys as words', () => {
+    expect(askedText({ termYears: 30, maxNoticeDays: 31 })).toBe(
+      "30-year term · up to 31 days' notice",
+    )
+    expect(askedText({ someNewCount: 3, newChoice: 'fixed_rate', keepAccessible: true })).toBe(
+      'some new count 3 · new choice fixed rate · keep accessible',
+    )
+    expect(keyWords('annualGross_income')).toBe('annual gross income')
   })
 
   it('is empty when nothing was recorded', () => {
