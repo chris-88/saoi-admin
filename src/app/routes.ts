@@ -13,6 +13,8 @@ export const routes = {
     engine: '/engine',
     catalogue: '/catalogue',
     analytics: '/analytics',
+    /** Calls to Saoi from people's own assistants, through the MCP server. */
+    aiUsage: '/ai-usage',
     forms: '/forms',
     formApplication: (id: string) => `/forms/${id}`,
     /** §44: what people said about it, and who asked to work on it. */

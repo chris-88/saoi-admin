@@ -1,5 +1,5 @@
 import { api, apiError, SaoiApiError } from '@/api/client'
-import type { AdminRequest } from '@contracts/admin.ts'
+import type { AdminRequest, Period } from '@contracts/admin.ts'
 
 export { SaoiApiError }
 
@@ -229,6 +229,11 @@ export function listMarketProducts(): Promise<unknown> {
 }
 
 /** The market as the comparison engine sees it: one view per product. */
+/** The AI usage screen; `cursor` is the page before's `nextCursor`, for the recent calls. */
+export function aiUsage(period: Period, cursor?: string): Promise<unknown> {
+  return payload(api.GET('/api/admin/ai-usage', { params: { query: compact({ period, cursor }) } }))
+}
+
 export function listMarketViews(): Promise<unknown> {
   return payload(api.GET('/api/admin/market/views'))
 }

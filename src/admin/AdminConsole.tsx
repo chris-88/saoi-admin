@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom'
 import {
   CompassIcon,
   ChartLineIcon,
+  BotIcon,
   HandshakeIcon,
   MessagesSquareIcon,
   MessageSquareHeartIcon,
@@ -86,6 +87,13 @@ const SECTIONS = [
     label: 'Analytics',
     hint: 'What has happened',
     icon: ChartLineIcon,
+    end: false,
+  },
+  {
+    to: routes.admin.aiUsage,
+    label: 'AI usage',
+    hint: 'Calls from people’s own assistants',
+    icon: BotIcon,
     end: false,
   },
   {

@@ -15,6 +15,7 @@ const FILES = [
   'contracts/admin.ts',
   'contracts/catalogue.ts',
   'contracts/market.ts',
+  'contracts/telemetry.ts',
   'domain/case.ts',
   'domain/catalogue/overlay.ts',
   'domain/facts.ts',

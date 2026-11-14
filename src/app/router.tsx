@@ -17,6 +17,7 @@ const routeObjects: RouteObject[] = [
       { path: 'engine', element: <LazyAdminOverview section="engine" /> },
       { path: 'catalogue', element: <LazyAdminOverview section="catalogue" /> },
       { path: 'analytics', element: <LazyAdminOverview section="analytics" /> },
+      { path: 'ai-usage', element: <LazyAdminOverview section="ai-usage" /> },
       { path: 'forms', element: <LazyAdminOverview section="forms" /> },
       { path: 'forms/:formApplicationId', element: <LazyAdminOverview section="forms" /> },
       { path: 'feedback', element: <LazyAdminOverview section="feedback" /> },
