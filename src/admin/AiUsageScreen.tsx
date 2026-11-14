@@ -171,6 +171,7 @@ function Panels({
             <Panel
               title="Tools"
               description="Calls, errors, how often the gate held the card back, and the median time."
+              scroll
             >
               <Tools tools={data.tools} />
             </Panel>
@@ -186,6 +187,7 @@ function Panels({
           <Panel
             title="Recent calls"
             description="Newest first. Figures are bands; search words and product ids are as the assistant sent them."
+            scroll
           >
             <Recent calls={recent} more={more} />
           </Panel>
@@ -289,7 +291,7 @@ function Tools({ tools }: { readonly tools: AiUsage['tools'] }): ReactNode {
   if (tools.length === 0) return <Nothing>No tool has been called in this window.</Nothing>
 
   return (
-    <Table>
+    <Table className="min-w-[26rem]">
       <TableHeader>
         <TableRow>
           <TableHead>Tool</TableHead>
@@ -387,7 +389,7 @@ function Recent({
 
   return (
     <div className="space-y-3">
-      <Table>
+      <Table className="min-w-[44rem]">
         <TableHeader>
           <TableRow>
             <TableHead>Time</TableHead>
@@ -472,13 +474,19 @@ function UserAgents({ agents }: { readonly agents: AiUsage['userAgents'] }): Rea
   )
 }
 
+/**
+ * `scroll`: a table wider than a phone scrolls sideways inside the card (as Collaborators does)
+ * rather than clipping its last columns.
+ */
 function Panel({
   title,
   description,
+  scroll = false,
   children,
 }: {
   readonly title: string
   readonly description: string
+  readonly scroll?: boolean
   readonly children: ReactNode
 }): ReactNode {
   return (
@@ -487,7 +495,9 @@ function Panel({
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className={scroll ? 'min-w-0 overflow-x-auto' : undefined}>
+        {children}
+      </CardContent>
     </Card>
   )
 }
